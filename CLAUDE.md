@@ -8,7 +8,7 @@ VOD 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는
 분석은 수십 분 걸리는 작업이므로 FastAPI BackgroundTasks가 아니라 큐 + 워커로 실행할 예정.
 
 ## 구조
-- `pipeline/stages.py`: 단계 목록과 `run_stage`. 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
+- `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
 - `pipeline/__main__.py`: CLI. `python -m pipeline /data/ep01.mp4 --until hls`
 - `app/`: FastAPI (임시)
