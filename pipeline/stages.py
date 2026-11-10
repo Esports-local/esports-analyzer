@@ -3,14 +3,15 @@
 from pathlib import Path
 
 STAGES = [
-    "preprocess",  # 영상/음성 분리, 정규화
-    "shots",       # PySceneDetect 하드컷 검출
-    "keyframes",   # Shot별 키프레임 추출
+    "preprocess",  # ffprobe 메타데이터 + 16kHz 모노 wav
+    "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
+    "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
+    "keyframes",   # segment별 키프레임 추출
     "asr",         # Silero VAD + faster-whisper (word timestamps)
-    "similarity",  # MobileCLIP 화면 유사도
-    "merge",       # Shot -> Segment 병합
-    "vlm",         # Segment별 대표 프레임 + 대사 -> VLM
-    "select",      # 중요 Segment 선별
+    "similarity",  # 인접 segment 연속성 (MobileCLIP 등)
+    "scenes",      # segment -> scene 병합
+    "vlm",         # scene별 대표 프레임 + 대사 -> VLM
+    "select",      # 중요 scene 선별
     "predict",     # 다음 화 예측 + 근거
 ]
 
@@ -18,4 +19,8 @@ STAGES = [
 def run_stage(name: str, video: Path, work_dir: Path) -> Path:
     if name not in STAGES:
         raise ValueError(f"unknown stage: {name}")
+    if name == "segments":
+        from pipeline import segments
+
+        return segments.run(video, work_dir)
     raise NotImplementedError(f"stage '{name}' is not implemented yet")

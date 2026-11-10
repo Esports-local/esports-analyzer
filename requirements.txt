@@ -1,4 +1,17 @@
+# torch 는 CPU 전용 휠 (기본 PyPI 휠은 CUDA 라이브러리까지 받아 수 GB). GPU 이미지는 별도 작성
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi==0.162.2
 uvicorn[standard]==0.54.0
 pydantic==2.14.3
 httpx==0.28.1
+
+# segments: TransNetV2 (전환 검출)
+torch==2.14.1+cpu
+transnetv2-pytorch==1.0.5
+numpy==2.4.6
+# transnetv2-pytorch 의존성 고정
+pandas==2.3.3
+pillow==12.3.0
+tqdm==4.67.3
+ffmpeg-python==0.2.0

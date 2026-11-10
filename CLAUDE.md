@@ -15,12 +15,12 @@ VOD 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는
 ```
 docker build -t vod-main .
 docker run --rm -p 8001:8001 -v "$PWD":/app vod-main uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-docker run --rm -v "$PWD":/app -v ~/vod-data:/data vod-main python -m pipeline /data/ep01.mp4 --until shots
+docker run --rm -v "$PWD":/app -v ~/vod-data:/data vod-main python -m pipeline /data/ep01.mp4 --until segments
 ```
 현재 Dockerfile은 CPU용. GPU 서버용은 CUDA 베이스 이미지로 별도 작성 예정.
 
 ## 모델 (설계안)
-PySceneDetect(컷, CPU) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CPU) · faster-whisper small INT8(ASR, CPU 가능)
+TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CPU) · faster-whisper small INT8(ASR, CPU 가능)
 · Qwen3-VL 2B/4B 4bit(VLM, GPU) · 예측 LLM은 미정.
 
 ## 개발 제약
@@ -28,10 +28,10 @@ PySceneDetect(컷, CPU) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CP
 VLM은 백엔드 인터페이스로 분리: `mock`(로컬) / `mlx`(Apple Silicon, 가능 여부 확인 필요) / `transformers`·`vLLM`(GPU 서버).
 
 ## 작업 순서
-1. preprocess (ffmpeg: 오디오 추출 + HLS 변환) → shots → keyframes (짧은 클립으로 검증)
+1. preprocess (ffprobe + 16kHz wav) → segments (전환 검출) → hls (전환 기준 ts ≤4초) → keyframes (짧은 클립으로 검증)
 2. asr (word_timestamps 사용, 컷을 넘는 대사는 자르지 않음, 화자 라벨 S1/S2…)
-3. similarity → merge, Segment 경계를 눈으로 확인하는 디버그 HTML
-4. vlm (mock부터) → select → predict
+3. similarity → scenes, ts·segment·scene 경계를 눈으로 확인하는 검수 HTML
+4. vlm (mock부터) → select → predict (body 구성은 미정)
 5. 큐 + 워커, api 연동 (스펙 확정 후)
 
 ## 규칙 요약 (상세는 PLAN.md)
