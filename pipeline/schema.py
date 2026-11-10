@@ -12,10 +12,11 @@
 
 결과 흐름
 - main: 회차마다 분석 결과(EpisodeAnalysis)를 저장소(MinIO analysis/{episode}/)에 보관한다.
-  인물 정보는 모른다. 대사의 speaker 는 S1, S2 … 라벨뿐이다.
-- api: ui 요청을 받을 때 저장된 결과를 읽어 그 자리에서 header(작품·회차·인물·화자 매핑)를 붙인다.
+  인물 정보는 모른다. 대사의 speaker 는 S1 …, 화면의 얼굴은 F1 … 라벨뿐이다.
+- api: ui 요청을 받을 때 저장된 결과를 읽어 그 자리에서 header(작품·회차·인물·화자/얼굴 매핑)를 붙인다.
   EpisodeDocument 는 그 결과 모양(회차 하나 = JSON 하나)이며 main 이 만들지 않는다.
-- body(scenes, lines) 의 구성은 아직 미정. 아래 Analysis*/Body 는 임시 초안이다.
+- body 는 대본처럼 scene 단위. scene 안에 대사(lines)와 사용한 segment/ts 번호를 넣는다.
+  세부 필드는 실제 영상으로 결과를 보며 조정한다.
 """
 
 from datetime import datetime, timezone
@@ -143,6 +144,32 @@ class KeyframesResult(BaseModel):
     keyframes: list[Keyframe]
 
 
+# ---------------------------------------------------------------- faces (InsightFace)
+
+class FaceDetection(BaseModel):
+    id: int
+    segment_id: int
+    time_sec: float
+    bbox: tuple[float, float, float, float]  # x1, y1, x2, y2 (프레임 크기 기준 0~1)
+    det_score: float
+    face_id: str | None  # 군집 라벨 F1, F2 … (작은 군집이면 None)
+
+
+class FaceCluster(BaseModel):
+    """회차 안에서 같은 사람으로 묶인 얼굴. 라벨은 회차마다 새로 붙는다."""
+
+    face_id: str
+    count: int
+    segment_ids: list[int]
+    best_detection_id: int  # 대표 얼굴 (썸네일, 배우 사진 비교용)
+
+
+class FacesResult(BaseModel):
+    embeddings_path: str  # faces/embeddings.npy (detections 와 같은 순서의 행, 512차원 정규화)
+    clusters: list[FaceCluster]
+    detections: list[FaceDetection]
+
+
 # ---------------------------------------------------------------- asr
 
 class Word(TimeSpan):
@@ -210,22 +237,31 @@ class VlmResult(BaseModel):
 
 # ---------------------------------------------------------------- 분석 결과 (main → api)
 
-class AnalysisScene(TimeSpan):
-    id: int
-    type: SceneType
-    summary: str
-    keywords: list[str] = []
-    segment_ids: list[int] = []
-    speakers: list[str] = []  # 이 scene 에서 말한 화자 라벨
-    black_before: bool = False  # 암전 뒤에 시작하는 scene
-
-
 class AnalysisLine(TimeSpan):
+    """대본의 대사 한 줄. 컷·ts 경계를 넘어도 자르지 않는다."""
+
     id: int
-    scene_id: int | None  # 시작 시각이 속한 scene
     speaker: str | None  # S1, S2 … (화자 분리 전이면 None)
     language: str | None = None  # ko, ja, en … (다국어 대사)
     text: str
+
+
+class AnalysisScene(TimeSpan):
+    """대본의 씬 하나. 대사는 씬 안에 시간순으로 들어간다.
+
+    segment_ids/ts_ids 는 이 씬이 어떤 조각으로 이루어졌는지 표시만 한다 (재생·근거 이동용).
+    대사는 시작 시각이 속한 씬에 넣는다.
+    """
+
+    id: int
+    type: SceneType
+    summary: str  # 지문 (VLM)
+    keywords: list[str] = []
+    black_before: bool = False  # 암전 뒤에 시작하는 scene
+    faces: list[str] = []  # 화면에 나온 얼굴 라벨 F1, F2 …
+    segment_ids: list[int] = []
+    ts_ids: list[int] = []  # 씬 구간과 겹치는 ts (씬 안의 transition ts 포함)
+    lines: list[AnalysisLine] = []
 
 
 class SpeakerSummary(BaseModel):
@@ -244,7 +280,6 @@ class EpisodeAnalysis(BaseModel):
     episode: str
     duration_sec: float
     scenes: list[AnalysisScene]
-    lines: list[AnalysisLine]
     speakers: list[SpeakerSummary]
 
 
@@ -286,12 +321,12 @@ class Header(BaseModel):
     duration_sec: float
     characters: list[Character] = []
     speakers: dict[str, int | None] = {}  # 이 회차의 화자 라벨 → characters.id
+    faces: dict[str, int | None] = {}  # 이 회차의 얼굴 라벨 → characters.id
     fields: dict[str, str] = {}
 
 
 class Body(BaseModel):
     scenes: list[AnalysisScene]
-    lines: list[AnalysisLine]
 
 
 class EpisodeDocument(BaseModel):
@@ -305,9 +340,13 @@ class EpisodeDocument(BaseModel):
 FIELD_DESCRIPTIONS = {
     "start_sec/end_sec": "원본 영상 기준 시작·끝 시각(초)",
     "header.speakers": "화자 라벨(S1 …) → header.characters 의 id. 회차마다 라벨이 다르다",
-    "scenes": "문맥상 이어지는 장면 단위",
+    "header.faces": "얼굴 라벨(F1 …) → header.characters 의 id. 회차마다 라벨이 다르다",
+    "scenes": "대본의 씬. 문맥상 이어지는 장면 단위이며 대사(lines)를 시간순으로 포함",
+    "scenes[].summary": "지문. 이 씬에서 화면에 보이는 상황",
+    "scenes[].faces": "화면에 나온 얼굴 라벨(F1 …). header.faces 로 인물 확인",
+    "scenes[].segment_ids/ts_ids": "이 씬을 이루는 영상 조각 번호 (참조용)",
     "scenes[].type": "talk=대화 중심, action=행동·사건, reaction=표정·반응, "
     "transition=시간 변화·회상 진입, montage=짧은 장면 연결, mixed=혼합",
     "scenes[].black_before": "암전 뒤에 시작하는 장면 (시간 경과·큰 전환일 가능성)",
-    "lines": "대사. speaker 는 화자 라벨, language 는 대사 언어",
+    "scenes[].lines": "대사. speaker 는 화자 라벨(header.speakers 로 인물 확인), language 는 대사 언어",
 }

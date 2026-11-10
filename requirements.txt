@@ -15,3 +15,11 @@ pandas==2.3.3
 pillow==12.3.0
 tqdm==4.67.3
 ffmpeg-python==0.2.0
+
+# faces: InsightFace buffalo_l (사전학습 모델은 비상업 연구용 라이선스)
+insightface==2.1
+onnxruntime==1.30.0
+onnx==1.23.2
+opencv-python==4.13.0.92
+scipy==1.18.1
+scikit-image==0.26.0

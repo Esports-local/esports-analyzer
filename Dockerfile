@@ -7,11 +7,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# InsightFace 얼굴 모델(buffalo_l, 비상업 연구용)을 이미지에 미리 받아 둔다
+ENV INSIGHTFACE_ROOT=/opt/insightface
+RUN python -c "from insightface.app import FaceAnalysis; \
+FaceAnalysis(name='buffalo_l', root='/opt/insightface', allowed_modules=['detection', 'recognition'])" \
+    && rm -f /opt/insightface/models/*.zip \
+       /opt/insightface/models/buffalo_l/1k3d68.onnx \
+       /opt/insightface/models/buffalo_l/2d106det.onnx \
+       /opt/insightface/models/buffalo_l/genderage.onnx
 
 COPY . .
 

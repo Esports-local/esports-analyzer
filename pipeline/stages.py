@@ -7,6 +7,7 @@ STAGES = [
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
     "keyframes",   # segment별 키프레임 추출
+    "faces",       # InsightFace 얼굴 검출·임베딩 -> 회차 내 군집 F1, F2 …
     "asr",         # Silero VAD + faster-whisper (word timestamps)
     "similarity",  # 인접 segment 연속성 (MobileCLIP 등)
     "scenes",      # segment -> scene 병합
@@ -23,4 +24,8 @@ def run_stage(name: str, video: Path, work_dir: Path) -> Path:
         from pipeline import segments
 
         return segments.run(video, work_dir)
+    if name == "faces":
+        from pipeline import faces
+
+        return faces.run(video, work_dir)
     raise NotImplementedError(f"stage '{name}' is not implemented yet")

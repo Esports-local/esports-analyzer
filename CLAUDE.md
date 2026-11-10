@@ -20,7 +20,7 @@ docker run --rm -v "$PWD":/app -v ~/vod-data:/data vod-main python -m pipeline /
 현재 Dockerfile은 CPU용. GPU 서버용은 CUDA 베이스 이미지로 별도 작성 예정.
 
 ## 모델 (설계안)
-TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CPU) · faster-whisper small INT8(ASR, CPU 가능)
+TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · InsightFace buffalo_l(얼굴 검출·인식, CPU, 비상업 연구용) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CPU) · faster-whisper small INT8(ASR, CPU 가능)
 · Qwen3-VL 2B/4B 4bit(VLM, GPU) · 예측 LLM은 미정.
 
 ## 개발 제약
@@ -28,7 +28,7 @@ TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · MobileCL
 VLM은 백엔드 인터페이스로 분리: `mock`(로컬) / `mlx`(Apple Silicon, 가능 여부 확인 필요) / `transformers`·`vLLM`(GPU 서버).
 
 ## 작업 순서
-1. preprocess (ffprobe + 16kHz wav) → segments (전환 검출) → hls (전환 기준 ts ≤4초) → keyframes (짧은 클립으로 검증)
+1. preprocess (ffprobe + 16kHz wav) → segments (전환 검출) → hls (전환 기준 ts ≤4초) → keyframes → faces (얼굴 군집 F1/F2…) (짧은 클립으로 검증)
 2. asr (word_timestamps 사용, 컷을 넘는 대사는 자르지 않음, 화자 라벨 S1/S2…)
 3. similarity → scenes, ts·segment·scene 경계를 눈으로 확인하는 검수 HTML
 4. vlm (mock부터) → select → predict (body 구성은 미정)
