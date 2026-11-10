@@ -1,4 +1,4 @@
-"""단계 결과 저장/읽기. 경로: <work_dir>/analysis/<stage>.json"""
+"""단계 결과 저장/읽기. 경로: <work_dir>/work/<stage>.json (중간 결과)"""
 
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from pipeline.schema import StageOutput
 
 
 def stage_path(work_dir: Path, stage: str) -> Path:
-    return work_dir / "analysis" / f"{stage}.json"
+    return work_dir / "work" / f"{stage}.json"
 
 
 def save_stage(work_dir: Path, stage: str, result: BaseModel, params: dict) -> Path:

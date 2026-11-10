@@ -63,7 +63,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
                                     segment_ids=sorted({detections[i].segment_id for i in idx}),
                                     best_detection_id=detections[best].id))
 
-    emb_path = work_dir / "faces" / "embeddings.npy"
+    emb_path = work_dir / "work" / "faces_embeddings.npy"
     emb_path.parent.mkdir(parents=True, exist_ok=True)
     np.save(emb_path, emb)
     result = FacesResult(embeddings_path=str(emb_path.relative_to(work_dir)), clusters=clusters, detections=detections)

@@ -10,13 +10,21 @@
 - id는 회차 안에서 1부터 시작하는 정수
 - 파일 경로는 회차 작업 디렉터리(outputs/<영상명>/) 기준 상대 경로
 
+파일 구성 (outputs/<영상명>/)
+- work/<stage>.json   단계 사이에 넘기는 중간 결과. 재실행·디버그용, 외부에 공개하지 않음
+- hls/index.m3u8      ▶ 결과물: 영상 구조. ts 목록·길이, segment·전환 표시
+                        #EXTINF:<길이>,seg=<segment id>
+                        #EXTINF:<길이>,transition=<cut|gradual>[ black]
+- analysis/episode.json ▶ 결과물: 영상 내용 (EpisodeAnalysis). 씬·지문·대사·얼굴
+  MinIO 에는 hls/ 와 analysis/ 만 올린다.
+
 결과 흐름
-- main: 회차마다 분석 결과(EpisodeAnalysis)를 저장소(MinIO analysis/{episode}/)에 보관한다.
+- main: 회차마다 hls/ 와 analysis/ 를 저장소(MinIO)에 보관한다.
   인물 정보는 모른다. 대사의 speaker 는 S1 …, 화면의 얼굴은 F1 … 라벨뿐이다.
+  대사는 들린 그대로의 원문. 번역·해석은 api 에서 한다.
 - api: ui 요청을 받을 때 저장된 결과를 읽어 그 자리에서 header(작품·회차·인물·화자/얼굴 매핑)를 붙인다.
   EpisodeDocument 는 그 결과 모양(회차 하나 = JSON 하나)이며 main 이 만들지 않는다.
-- body 는 대본처럼 scene 단위. scene 안에 대사(lines)와 사용한 segment/ts 번호를 넣는다.
-  세부 필드는 실제 영상으로 결과를 보며 조정한다.
+- body 는 대본처럼 scene 단위, scene 안에 대사(lines). 세부 필드는 실제 영상으로 결과를 보며 조정한다.
 """
 
 from datetime import datetime, timezone
@@ -27,7 +35,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 SCHEMA_VERSION = 1
 
 TransitionKind = Literal["cut", "gradual"]  # gradual: 디졸브·와이프·페이드 등 구간이 있는 전환
-TsKind = Literal["content", "transition"]
 SceneType = Literal["talk", "action", "reaction", "transition", "montage", "mixed"]
 
 
@@ -48,7 +55,7 @@ R = TypeVar("R", bound=BaseModel)
 
 
 class StageOutput(BaseModel, Generic[R]):
-    """outputs/<영상명>/analysis/<stage>.json"""
+    """outputs/<영상명>/work/<stage>.json (중간 결과)"""
 
     schema_version: int = SCHEMA_VERSION
     stage: str
@@ -109,27 +116,7 @@ class SegmentsResult(BaseModel):
 
 
 # ---------------------------------------------------------------- hls
-
-class Ts(TimeSpan):
-    id: int
-    path: str  # hls/seg_00001.ts
-    kind: TsKind
-    segment_id: int | None = None   # content면 소속 segment
-    transition_id: int | None = None  # transition이면 해당 전환
-
-    @model_validator(mode="after")
-    def _check_owner(self):
-        if self.kind == "content" and (self.segment_id is None or self.transition_id is not None):
-            raise ValueError("content ts는 segment_id만 가진다")
-        if self.kind == "transition" and (self.transition_id is None or self.segment_id is not None):
-            raise ValueError("transition ts는 transition_id만 가진다")
-        return self
-
-
-class HlsResult(BaseModel):
-    playlist_path: str  # hls/index.m3u8
-    max_ts_sec: float = 4.0
-    ts: list[Ts]
+# JSON 대신 hls/index.m3u8 이 결과다 (모듈 docstring 의 #EXTINF 표시 참고).
 
 
 # ---------------------------------------------------------------- keyframes
@@ -165,7 +152,7 @@ class FaceCluster(BaseModel):
 
 
 class FacesResult(BaseModel):
-    embeddings_path: str  # faces/embeddings.npy (detections 와 같은 순서의 행, 512차원 정규화)
+    embeddings_path: str  # work/faces_embeddings.npy (detections 와 같은 순서의 행, 512차원 정규화)
     clusters: list[FaceCluster]
     detections: list[FaceDetection]
 
@@ -238,20 +225,17 @@ class VlmResult(BaseModel):
 # ---------------------------------------------------------------- 분석 결과 (main → api)
 
 class AnalysisLine(TimeSpan):
-    """대본의 대사 한 줄. 컷·ts 경계를 넘어도 자르지 않는다."""
+    """대본의 대사 한 줄 = 한 화자가 이어서 말한 덩어리 전체 (컷·ts 경계를 넘어도 자르지 않음).
 
-    id: int
+    start_sec/end_sec 는 대사 구간 (근거·대사 클릭 시 이동). 결과를 보고 뺄지 정한다.
+    """
+
     speaker: str | None  # S1, S2 … (화자 분리 전이면 None)
-    language: str | None = None  # ko, ja, en … (다국어 대사)
-    text: str
+    text: str  # 들린 그대로의 원문
 
 
 class AnalysisScene(TimeSpan):
-    """대본의 씬 하나. 대사는 씬 안에 시간순으로 들어간다.
-
-    segment_ids/ts_ids 는 이 씬이 어떤 조각으로 이루어졌는지 표시만 한다 (재생·근거 이동용).
-    대사는 시작 시각이 속한 씬에 넣는다.
-    """
+    """대본의 씬 하나. 대사는 시작 시각이 속한 씬에 시간순으로 들어간다."""
 
     id: int
     type: SceneType
@@ -259,8 +243,6 @@ class AnalysisScene(TimeSpan):
     keywords: list[str] = []
     black_before: bool = False  # 암전 뒤에 시작하는 scene
     faces: list[str] = []  # 화면에 나온 얼굴 라벨 F1, F2 …
-    segment_ids: list[int] = []
-    ts_ids: list[int] = []  # 씬 구간과 겹치는 ts (씬 안의 transition ts 포함)
     lines: list[AnalysisLine] = []
 
 
@@ -274,7 +256,7 @@ class SpeakerSummary(BaseModel):
 
 
 class EpisodeAnalysis(BaseModel):
-    """outputs/<영상명>/analysis/episode.json. 회차 하나의 최종 분석 결과."""
+    """outputs/<영상명>/analysis/episode.json. 회차 하나의 최종 분석 결과 (영상 내용만)."""
 
     schema_version: int = SCHEMA_VERSION
     episode: str
@@ -344,9 +326,8 @@ FIELD_DESCRIPTIONS = {
     "scenes": "대본의 씬. 문맥상 이어지는 장면 단위이며 대사(lines)를 시간순으로 포함",
     "scenes[].summary": "지문. 이 씬에서 화면에 보이는 상황",
     "scenes[].faces": "화면에 나온 얼굴 라벨(F1 …). header.faces 로 인물 확인",
-    "scenes[].segment_ids/ts_ids": "이 씬을 이루는 영상 조각 번호 (참조용)",
     "scenes[].type": "talk=대화 중심, action=행동·사건, reaction=표정·반응, "
     "transition=시간 변화·회상 진입, montage=짧은 장면 연결, mixed=혼합",
     "scenes[].black_before": "암전 뒤에 시작하는 장면 (시간 경과·큰 전환일 가능성)",
-    "scenes[].lines": "대사. speaker 는 화자 라벨(header.speakers 로 인물 확인), language 는 대사 언어",
+    "scenes[].lines": "대사(원문). speaker 는 화자 라벨(header.speakers 로 인물 확인), start_sec/end_sec 는 대사 구간",
 }
