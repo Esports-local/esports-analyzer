@@ -13,7 +13,7 @@
    구간 안에 거의 검은 프레임이 있으면 black=True (암전).
 4. cut 두 개 사이가 min_segment_sec 미만이면(플래시 등) 앞 cut 을 지워 앞 segment 에 합친다.
 
-시간: 프레임 i 는 [i/fps, (i+1)/fps) 구간. 고정 프레임레이트(CFR)를 가정한다.
+시간: 프레임 i 는 [i/fps, (i+1)/fps) 구간. 프레임은 fps 필터로 CFR 에 맞춰 읽으므로 VFR 영상도 시각이 맞다.
 """
 
 from pathlib import Path
@@ -38,7 +38,7 @@ DEFAULT_PARAMS = {
 def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     p = {**DEFAULT_PARAMS, **(params or {})}
     fps = fps_of(video_stream(probe(video)))
-    frames = read_frames(video, 48, 27)
+    frames = read_frames(video, 48, 27, fps)
     single, many = predict(frames)
     luma = frames.astype(np.float32) @ np.array([0.299, 0.587, 0.114], np.float32)
     luma = luma.mean(axis=(1, 2))

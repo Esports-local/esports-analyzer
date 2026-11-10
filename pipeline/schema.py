@@ -71,7 +71,8 @@ class VideoInfo(BaseModel):
     codec: str
     width: int
     height: int
-    fps: float
+    fps: float  # 평균 프레임레이트. 분석 단계는 이 값으로 CFR 에 맞춰 읽는다
+    vfr: bool  # 가변 프레임레이트 여부 (화면 녹화본에서 흔함)
 
 
 class AudioInfo(BaseModel):
@@ -81,7 +82,7 @@ class AudioInfo(BaseModel):
 
 
 class AudioFile(BaseModel):
-    path: str  # audio.wav
+    path: str  # work/audio.wav
     sample_rate: int = 16000
     channels: int = 1
 

@@ -1,9 +1,9 @@
-"""파이프라인 단계 정의. 각 단계는 work_dir/<stage>.json 을 출력한다."""
+"""파이프라인 단계 정의. 각 단계는 work_dir/work/<stage>.json 을 출력한다."""
 
 from pathlib import Path
 
 STAGES = [
-    "preprocess",  # ffprobe 메타데이터 + 16kHz 모노 wav
+    "preprocess",  # ffprobe 메타데이터·VFR 점검 + 16kHz 모노 wav
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
     "keyframes",   # segment별 키프레임 추출
@@ -20,6 +20,10 @@ STAGES = [
 def run_stage(name: str, video: Path, work_dir: Path) -> Path:
     if name not in STAGES:
         raise ValueError(f"unknown stage: {name}")
+    if name == "preprocess":
+        from pipeline import preprocess
+
+        return preprocess.run(video, work_dir)
     if name == "segments":
         from pipeline import segments
 
