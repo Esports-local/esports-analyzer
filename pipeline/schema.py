@@ -14,7 +14,8 @@
 - work/<stage>.json   단계 사이에 넘기는 중간 결과. 재실행·디버그용, 외부에 공개하지 않음
 - hls/index.m3u8      ▶ 결과물: 영상 구조. ts 목록·길이, segment·전환 표시
                         #EXTINF:<길이>,seg=<segment id>
-                        #EXTINF:<길이>,transition=<cut|gradual>[ black]
+                        #EXTINF:<길이>,transition=gradual[ black]   (cut 은 한 시점이라 ts 없음)
+                        master.m3u8: RESOLUTION, FRAME-RATE, CODECS, BANDWIDTH
 - analysis/episode.json ▶ 결과물: 영상 내용 (EpisodeAnalysis). 씬·지문·대사·얼굴
   MinIO 에는 hls/ 와 analysis/ 만 올린다.
 

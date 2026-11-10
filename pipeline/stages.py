@@ -1,4 +1,4 @@
-"""파이프라인 단계 정의. 각 단계는 work_dir/work/<stage>.json 을 출력한다."""
+"""파이프라인 단계 정의. 각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8)."""
 
 from pathlib import Path
 
@@ -26,7 +26,7 @@ def run_stage(name: str, video: Path, work_dir: Path) -> Path:
         work_dir: 회차 작업 디렉터리 (outputs/<영상명>/).
 
     Returns:
-        저장된 단계 결과 파일 경로 (work/<stage>.json).
+        저장된 단계 결과 파일 경로 (work/<stage>.json, hls 는 hls/index.m3u8).
 
     Raises:
         ValueError: 알 수 없는 단계 이름.
@@ -42,6 +42,10 @@ def run_stage(name: str, video: Path, work_dir: Path) -> Path:
         from pipeline import segments
 
         return segments.run(video, work_dir)
+    if name == "hls":
+        from pipeline import hls
+
+        return hls.run(video, work_dir)
     if name == "faces":
         from pipeline import faces
 
