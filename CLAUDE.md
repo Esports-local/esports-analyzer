@@ -37,4 +37,11 @@ VLM은 백엔드 인터페이스로 분리: `mock`(로컬) / `mlx`(Apple Silicon
 ## 규칙 요약 (상세는 PLAN.md)
 - 시간은 초 단위 float, 단계 결과 JSON에는 `schema_version`
 - 결과 파일은 MinIO 구조(`hls/`, `frames/`, `analysis/`)에 맞춰 저장
+  - `work/`: 단계별 중간 JSON (외부 공개 안 함) · `hls/`: 영상 구조(m3u8) · `analysis/`: 영상 내용(JSON)
 - 패키지는 `requirements.txt`에 `==` 고정 후 이미지 재빌드 (로컬 가상환경 안 씀)
+
+## 커밋 규칙
+- 메시지는 `종류/내용` 한 줄로 간단하게 쓴다
+  - `feat/` 기능 구현 · `refactor/` 구조 변경 · `fix/` 버그 수정 · `docs/` 문서
+  - 예: `feat/TransNetV2 segments 단계 구현`
+- 작성자는 사용자 본인만. Claude 를 `Co-Authored-By` 등 공동 작성자로 넣지 않는다
