@@ -9,6 +9,13 @@ from pipeline.stages import STAGES, run_stage
 
 
 def main():
+    """파이프라인 CLI 진입점.
+
+    영상 하나를 받아 --from 부터 --until 까지의 단계를 순서대로 실행한다.
+    결과는 <work-dir>/<영상 파일명>/ 아래에 저장된다.
+
+    예: python -m pipeline /data/ep01.mp4 --from segments --until faces
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("video", type=Path)
     parser.add_argument("--work-dir", type=Path, default=Path("outputs"))

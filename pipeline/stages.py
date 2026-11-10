@@ -18,6 +18,20 @@ STAGES = [
 
 
 def run_stage(name: str, video: Path, work_dir: Path) -> Path:
+    """단계 하나를 실행한다.
+
+    Args:
+        name: 단계 이름 (STAGES 중 하나).
+        video: 원본 영상 경로.
+        work_dir: 회차 작업 디렉터리 (outputs/<영상명>/).
+
+    Returns:
+        저장된 단계 결과 파일 경로 (work/<stage>.json).
+
+    Raises:
+        ValueError: 알 수 없는 단계 이름.
+        NotImplementedError: 아직 구현하지 않은 단계.
+    """
     if name not in STAGES:
         raise ValueError(f"unknown stage: {name}")
     if name == "preprocess":

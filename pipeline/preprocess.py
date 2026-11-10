@@ -16,6 +16,16 @@ DEFAULT_PARAMS = {"audio_sample_rate": 16000, "audio_channels": 1}
 
 
 def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
+    """preprocess 단계를 실행한다.
+
+    Args:
+        video: 원본 영상 경로.
+        work_dir: 회차 작업 디렉터리.
+        params: DEFAULT_PARAMS 를 덮어쓸 설정 (audio_sample_rate, audio_channels).
+
+    Returns:
+        work/preprocess.json 경로. 오디오 트랙이 있으면 work/audio.wav 도 만든다.
+    """
     p = {**DEFAULT_PARAMS, **(params or {})}
     info = probe(video)
     vs = video_stream(info)

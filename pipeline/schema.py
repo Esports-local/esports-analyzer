@@ -44,6 +44,7 @@ class TimeSpan(BaseModel):
 
     @model_validator(mode="after")
     def _check_order(self):
+        """end_sec 가 start_sec 보다 앞이면 거부한다."""
         if self.end_sec < self.start_sec:
             raise ValueError(f"end_sec({self.end_sec}) < start_sec({self.start_sec})")
         return self

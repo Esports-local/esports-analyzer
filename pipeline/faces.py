@@ -33,6 +33,18 @@ DEFAULT_PARAMS = {
 
 
 def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
+    """faces 단계를 실행한다.
+
+    segments 결과의 구간에서 프레임을 뽑아 얼굴을 찾고, 회차 안에서 같은 사람끼리 묶어 F1, F2 … 라벨을 붙인다.
+
+    Args:
+        video: 원본 영상 경로.
+        work_dir: 회차 작업 디렉터리. work/segments.json 이 있어야 한다.
+        params: DEFAULT_PARAMS 를 덮어쓸 설정.
+
+    Returns:
+        work/faces.json 경로. 임베딩은 work/faces_embeddings.npy 에 저장한다.
+    """
     p = {**DEFAULT_PARAMS, **(params or {})}
     segments = load_stage(work_dir, "segments", SegmentsResult).result.segments
     app = load_model(p["det_size"])
@@ -71,6 +83,16 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
 
 def load_model(det_size: int):
+    """InsightFace buffalo_l 의 검출·인식 모델만 CPU 로 불러온다.
+
+    모델 파일은 INSIGHTFACE_ROOT (이미지 빌드 시 /opt/insightface) 에서 읽는다.
+
+    Args:
+        det_size: 검출 모델 입력 크기 (정사각형 한 변, px).
+
+    Returns:
+        준비된 FaceAnalysis. app.get(BGR 이미지) 로 얼굴 목록을 얻는다.
+    """
     import warnings
 
     from insightface.app import FaceAnalysis
@@ -84,6 +106,7 @@ def load_model(det_size: int):
 
 
 def _segment_at(segments: list[Segment], t: float) -> Segment | None:
+    """시각 t 가 속한 segment 를 찾는다. 전환 구간이면 None."""
     for s in segments:
         if s.start_sec <= t < s.end_sec:
             return s
@@ -91,6 +114,15 @@ def _segment_at(segments: list[Segment], t: float) -> Segment | None:
 
 
 def _frame_size(video: Path, height: int | None) -> tuple[int, int]:
+    """얼굴 검출에 쓸 프레임 크기를 정한다.
+
+    Args:
+        video: 영상 경로.
+        height: 원하는 높이. None 이면 원본 크기.
+
+    Returns:
+        (너비, 높이). 비율을 유지하고 너비는 짝수로 맞춘다.
+    """
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                           "stream=width,height", "-of", "csv=p=0", str(video)],
                          check=True, capture_output=True, text=True).stdout.strip().split(",")
@@ -101,7 +133,20 @@ def _frame_size(video: Path, height: int | None) -> tuple[int, int]:
 
 
 def sample_frames(video: Path, segments: list[Segment], fps: float, height: int | None):
-    """(segment, 시각, BGR 프레임) 을 순서대로 낸다."""
+    """segment 구간에서 프레임을 뽑는다.
+
+    전체 영상을 fps 간격(CFR)으로 읽어 segment 안에 있는 프레임만 낸다 (전환 구간은 건너뜀).
+    그 간격보다 짧아 프레임을 하나도 받지 못한 segment 는 가운데 프레임을 따로 뽑는다.
+
+    Args:
+        video: 영상 경로.
+        segments: segments 단계 결과.
+        fps: 초당 뽑을 프레임 수.
+        height: 프레임 높이. None 이면 원본.
+
+    Yields:
+        (segment, 시각(초), BGR 프레임 (H, W, 3) uint8).
+    """
     w, h = _frame_size(video, height)
     size = w * h * 3
     proc = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(video), "-an",
@@ -133,7 +178,20 @@ def sample_frames(video: Path, segments: list[Segment], fps: float, height: int 
 
 
 def cluster(emb: np.ndarray, scores: np.ndarray, threshold: float, min_size: int) -> list[int | None]:
-    """얼굴 임베딩 군집화. 반환: 얼굴마다 군집 번호(1부터, 큰 군집 순) 또는 None."""
+    """얼굴 임베딩을 코사인 유사도로 군집화한다.
+
+    검출 점수가 높은 얼굴부터, 가장 가까운 군집 중심과의 유사도가 threshold 이상이면 그 군집에 넣고
+    아니면 새 군집을 만든다. 그 뒤 중심끼리 유사도가 threshold 이상인 군집을 합친다.
+
+    Args:
+        emb: (N, 512) 정규화된 임베딩.
+        scores: (N,) 검출 점수.
+        threshold: 같은 사람으로 볼 코사인 유사도.
+        min_size: 이보다 얼굴 수가 적은 군집은 라벨을 붙이지 않는다.
+
+    Returns:
+        얼굴마다 군집 번호 (1부터, 얼굴 수가 많은 순) 또는 None.
+    """
     n = len(emb)
     if n == 0:
         return []

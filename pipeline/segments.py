@@ -36,6 +36,18 @@ DEFAULT_PARAMS = {
 
 
 def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
+    """segments 단계를 실행한다.
+
+    프레임을 48x27, CFR 로 읽어 TransNetV2 로 전환을 찾고, 전환 사이를 segment 로 만든다.
+
+    Args:
+        video: 원본 영상 경로.
+        work_dir: 회차 작업 디렉터리.
+        params: DEFAULT_PARAMS 를 덮어쓸 설정 (임계값 등). 실제 쓴 값과 fps 가 결과에 기록된다.
+
+    Returns:
+        work/segments.json 경로.
+    """
     p = {**DEFAULT_PARAMS, **(params or {})}
     fps = fps_of(video_stream(probe(video)))
     frames = read_frames(video, 48, 27, fps)
@@ -51,6 +63,15 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
 
 def predict(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """TransNetV2 로 프레임마다 전환 확률을 계산한다 (CPU).
+
+    Args:
+        frames: (N, 27, 48, 3) uint8 RGB. TransNetV2 는 이 크기만 받는다.
+
+    Returns:
+        (single, many). 둘 다 길이 N 의 0~1 확률.
+        single 은 컷 지점(컷 직전 프레임), many 는 전환 구간에 속한 프레임일 확률.
+    """
     import torch
     from transnetv2_pytorch import TransNetV2
 
@@ -62,7 +83,14 @@ def predict(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    """True 가 연속된 구간 [a, b] (양끝 포함) 목록."""
+    """bool 배열에서 True 가 연속된 구간을 찾는다.
+
+    Args:
+        mask: bool 배열.
+
+    Returns:
+        (a, b) 목록. a, b 는 양끝을 포함한 인덱스.
+    """
     runs, start = [], None
     for i, v in enumerate(mask):
         if v and start is None:
@@ -78,7 +106,23 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
 def find_transition_spans(
     single: np.ndarray, many: np.ndarray, luma: np.ndarray, fps: float, p: dict
 ) -> list[tuple[int, int, bool]]:
-    """전환 구간 (a, b, gradual) 목록. 프레임 번호, 양끝 포함. cut 이면 a == b (컷 직전 프레임)."""
+    """전환 확률에서 전환 구간을 찾는다.
+
+    - many > many_threshold 가 gradual_min_frames 이상 이어지면 점진 전환. 양끝은 many > many_low 까지 넓힌다.
+    - single > single_threshold 인 지점 중 점진 전환 밖에 있으면 컷 (한 프레임).
+    - 겹치거나, 사이가 검은 화면이거나, 사이가 min_segment_sec 미만인데 점진 전환이 끼어 있으면 하나로 합친다.
+
+    Args:
+        single: 컷 지점 확률 (predict() 결과).
+        many: 전환 구간 확률 (predict() 결과).
+        luma: 프레임별 평균 밝기 (0~255).
+        fps: 프레임레이트.
+        p: 설정 (DEFAULT_PARAMS 형식).
+
+    Returns:
+        (a, b, gradual) 목록. a, b 는 양끝을 포함한 프레임 번호.
+        컷이면 a == b (컷 직전 프레임) 이고 gradual 은 False.
+    """
     n = len(many)
     spans: list[tuple[int, int, bool]] = []
     for a, b in _runs(many > p["many_threshold"]):
@@ -113,6 +157,23 @@ def find_transition_spans(
 def classify(
     luma: np.ndarray, a: int, b: int, gradual: bool, tid: int, fps: float, p: dict
 ) -> Transition:
+    """전환 구간 하나를 Transition 으로 만든다.
+
+    구간 안에 밝기 < fade_black_luma 인 프레임이 있으면 black=True (암전).
+
+    Args:
+        luma: 프레임별 평균 밝기.
+        a: 구간 시작 프레임.
+        b: 구간 끝 프레임 (포함).
+        gradual: 점진 전환이면 True, 컷이면 False.
+        tid: 전환 id.
+        fps: 프레임레이트.
+        p: 설정.
+
+    Returns:
+        컷은 start_sec == end_sec == (a + 1) / fps (컷 뒤 첫 프레임의 시작 시각).
+        점진 전환은 [a / fps, (b + 1) / fps].
+    """
     black = bool(luma[a : b + 1].min() < p["fade_black_luma"])
     if not gradual:
         t = round((a + 1) / fps, 3)
@@ -125,6 +186,19 @@ def build_segments(
     transitions: list[Transition], duration: float, min_sec: float
 ) -> tuple[list[Transition], list[Segment]]:
     # 너무 짧은 segment 는 그 앞 전환을 지워 앞 segment 에 합친다
+    """전환 목록으로 segment 목록을 만든다.
+
+    컷 두 개 사이가 min_sec 미만이면(플래시 등) 앞 컷을 지워 앞 segment 에 합친다.
+    전환 구간 자체는 어떤 segment 에도 넣지 않는다.
+
+    Args:
+        transitions: classify() 결과 목록 (시간순).
+        duration: 영상 길이(초).
+        min_sec: segment 최소 길이(초).
+
+    Returns:
+        (transitions, segments). 지운 전환이 있으면 전환 id 를 1부터 다시 매긴다.
+    """
     kept: list[Transition] = []
     for t in transitions:
         prev_end = kept[-1].end_sec if kept else 0.0
