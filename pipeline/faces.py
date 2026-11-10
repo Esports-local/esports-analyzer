@@ -137,6 +137,8 @@ def sample_frames(video: Path, segments: list[Segment], fps: float, height: int 
 
     전체 영상을 fps 간격(CFR)으로 읽어 segment 안에 있는 프레임만 낸다 (전환 구간은 건너뜀).
     그 간격보다 짧아 프레임을 하나도 받지 못한 segment 는 가운데 프레임을 따로 뽑는다.
+    ffmpeg 가 중간에 실패하면 일부만 처리한 결과를 저장하지 않도록 예외를 낸다.
+    호출 쪽이 중간에 멈추거나 예외가 나면 ffmpeg 프로세스를 정리한다.
 
     Args:
         video: 영상 경로.
@@ -146,25 +148,36 @@ def sample_frames(video: Path, segments: list[Segment], fps: float, height: int 
 
     Yields:
         (segment, 시각(초), BGR 프레임 (H, W, 3) uint8).
+
+    Raises:
+        RuntimeError: ffmpeg 가 실패함.
     """
     w, h = _frame_size(video, height)
     size = w * h * 3
     proc = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(video), "-an",
                              "-vf", f"fps={fps},scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "bgr24", "pipe:"],
-                            stdout=subprocess.PIPE)
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     covered: set[int] = set()
-    k = 0
-    while True:
-        buf = proc.stdout.read(size)
-        if len(buf) < size:
-            break
-        t = k / fps
-        k += 1
-        seg = _segment_at(segments, t)
-        if seg is not None:
-            covered.add(seg.id)
-            yield seg, t, np.frombuffer(buf, np.uint8).reshape(h, w, 3)
-    proc.wait()
+    try:
+        k = 0
+        while True:
+            buf = proc.stdout.read(size)
+            if len(buf) < size:
+                break
+            t = k / fps
+            k += 1
+            seg = _segment_at(segments, t)
+            if seg is not None:
+                covered.add(seg.id)
+                yield seg, t, np.frombuffer(buf, np.uint8).reshape(h, w, 3)
+        err = proc.stderr.read().decode(errors="replace")
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg 프레임 읽기 실패 ({proc.returncode}): {err.strip()}")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
 
     for seg in segments:  # 샘플이 하나도 없던 짧은 segment 는 가운데 프레임
         if seg.id in covered:
@@ -180,11 +193,14 @@ def sample_frames(video: Path, segments: list[Segment], fps: float, height: int 
 def cluster(emb: np.ndarray, scores: np.ndarray, threshold: float, min_size: int) -> list[int | None]:
     """얼굴 임베딩을 코사인 유사도로 군집화한다.
 
-    검출 점수가 높은 얼굴부터, 가장 가까운 군집 중심과의 유사도가 threshold 이상이면 그 군집에 넣고
-    아니면 새 군집을 만든다. 그 뒤 중심끼리 유사도가 threshold 이상인 군집을 합친다.
+    1. 검출 점수가 높은 얼굴부터, 가장 가까운 군집 중심과의 유사도가 threshold 이상이면 그 군집에 넣고
+       아니면 새 군집을 만든다. 중심 행렬을 유지하고 바뀐 군집의 행만 갱신한다.
+    2. 중심끼리 유사도가 threshold 이상인 군집을 가장 가까운 쌍부터 합친다.
+       행마다 최대 유사도를 기억해 두고, 합칠 때 영향받는 행만 다시 계산한다.
+       (군집 수 k 에 대해 k x k 유사도 행렬을 쓴다. k=5,000 이면 약 100MB)
 
     Args:
-        emb: (N, 512) 정규화된 임베딩.
+        emb: (N, D) 정규화된 임베딩.
         scores: (N,) 검출 점수.
         threshold: 같은 사람으로 볼 코사인 유사도.
         min_size: 이보다 얼굴 수가 적은 군집은 라벨을 붙이지 않는다.
@@ -195,37 +211,61 @@ def cluster(emb: np.ndarray, scores: np.ndarray, threshold: float, min_size: int
     n = len(emb)
     if n == 0:
         return []
-    assign = np.full(n, -1)
-    sums: list[np.ndarray] = []
-    for i in np.argsort(-scores):
-        if sums:
-            cent = np.stack([s / np.linalg.norm(s) for s in sums])
-            sims = cent @ emb[i]
+    emb = emb.astype(np.float32, copy=False)
+    assign = np.full(n, -1, dtype=np.int64)
+    sums = np.zeros_like(emb)
+    cent = np.zeros_like(emb)
+    k = 0
+    for i in np.argsort(-scores, kind="stable"):
+        e = emb[i]
+        if k:
+            sims = cent[:k] @ e
             j = int(np.argmax(sims))
             if sims[j] >= threshold:
                 assign[i] = j
-                sums[j] = sums[j] + emb[i]
+                sums[j] += e
+                cent[j] = sums[j] / np.linalg.norm(sums[j])
                 continue
-        assign[i] = len(sums)
-        sums.append(emb[i].copy())
+        assign[i] = k
+        sums[k] = e
+        cent[k] = e / np.linalg.norm(e)
+        k += 1
 
     # 중심이 가까운 군집 합치기
-    merged = True
-    while merged and len(sums) > 1:
-        merged = False
-        cent = np.stack([s / np.linalg.norm(s) for s in sums])
-        sim = cent @ cent.T
-        np.fill_diagonal(sim, -1)
-        a, b = np.unravel_index(np.argmax(sim), sim.shape)
-        if sim[a, b] >= threshold:
-            a, b = min(a, b), max(a, b)
-            sums[a] = sums[a] + sums[b]
-            sums.pop(b)
-            assign[assign == b] = a
-            assign[assign > b] -= 1
-            merged = True
+    alive = np.ones(k, dtype=bool)
+    sim = cent[:k] @ cent[:k].T
+    np.fill_diagonal(sim, -np.inf)
+    best_idx = sim.argmax(axis=1)
+    best_val = sim[np.arange(k), best_idx]
+    while k > 1:
+        a = int(np.argmax(best_val))
+        if best_val[a] < threshold:
+            break
+        b = int(best_idx[a])
+        sums[a] += sums[b]
+        cent[a] = sums[a] / np.linalg.norm(sums[a])
+        assign[assign == b] = a
+        alive[b] = False
+        sim[b, :] = -np.inf
+        sim[:, b] = -np.inf
+        best_val[b] = -np.inf
+        row = cent[:k] @ cent[a]
+        row[~alive] = -np.inf
+        row[a] = -np.inf
+        sim[a, :] = row
+        sim[:, a] = row
+        # 최대값이 a 나 b 를 가리키던 행, 그리고 a 행 자신은 다시 계산
+        stale = alive & ((best_idx == a) | (best_idx == b))
+        stale[a] = True
+        for r in np.flatnonzero(stale):
+            best_idx[r] = int(np.argmax(sim[r]))
+            best_val[r] = sim[r, best_idx[r]]
+        # 새 a 열이 기존 최대보다 큰 행 갱신
+        better = alive & (row > best_val)
+        best_idx[better] = a
+        best_val[better] = row[better]
 
-    counts = np.bincount(assign, minlength=len(sums))
-    order = [c for c in np.argsort(-counts, kind="stable") if counts[c] >= min_size]
+    counts = np.bincount(assign, minlength=k)
+    order = [c for c in np.argsort(-counts, kind="stable") if alive[c] and counts[c] >= min_size]
     rank = {int(c): r + 1 for r, c in enumerate(order)}
     return [rank.get(int(a)) for a in assign]

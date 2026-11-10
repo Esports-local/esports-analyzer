@@ -73,6 +73,7 @@ def read_frames(video: Path, width: int, height: int, fps: float) -> np.ndarray:
 
     fps 필터로 고정 프레임레이트(CFR)에 맞춰 읽는다. VFR 영상이어도 프레임 i 의 시각이 항상 i / fps 가 된다
     (빠진 자리는 앞 프레임 복제, 겹치면 버림). 전체를 메모리에 올리므로 작은 크기(예: 48x27)로만 쓴다.
+    ffmpeg 출력을 bytearray 에 바로 쌓아, 추가 복사 없이 쓰기 가능한 배열로 돌려준다.
 
     Args:
         video: 영상 경로.
@@ -81,15 +82,32 @@ def read_frames(video: Path, width: int, height: int, fps: float) -> np.ndarray:
         fps: 읽을 프레임레이트 (fps_of() 결과).
 
     Returns:
-        (N, height, width, 3) uint8 RGB 배열.
+        (N, height, width, 3) uint8 RGB 배열 (쓰기 가능).
+
+    Raises:
+        RuntimeError: ffmpeg 가 실패함.
     """
-    raw = subprocess.run(
+    proc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-i", str(video), "-an",
          "-vf", f"fps={fps!r},scale={width}:{height}",
          "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
-        check=True, capture_output=True,
-    ).stdout
-    return np.frombuffer(raw, np.uint8).reshape(-1, height, width, 3)
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    buf = bytearray()
+    try:
+        while chunk := proc.stdout.read(1 << 22):
+            buf += chunk
+        err = proc.stderr.read().decode(errors="replace")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg 프레임 읽기 실패 ({proc.returncode}): {err.strip()}")
+    frame = width * height * 3
+    usable = len(buf) - len(buf) % frame
+    del buf[usable:]
+    return np.frombuffer(buf, np.uint8).reshape(-1, height, width, 3)
 
 
 def is_vfr(video: Path, fps: float, tolerance: float = 0.5) -> bool:

@@ -7,8 +7,8 @@
    - 점진 전환: many > many_threshold 가 gradual_min_frames 이상 이어지는 구간.
      양끝은 many > many_low 인 곳까지 넓힌다 (확률이 서서히 오르내리므로)
    - cut: single > single_threshold 인 지점 중 점진 전환 구간 밖에 있는 것 (한 프레임)
-   - 사이가 아주 짧거나(min_segment_sec 미만) 거의 검은 화면인 전환들은 하나로 합친다
-     (페이드 아웃 → 검은 화면 → 페이드 인 이 한 전환이 되도록)
+   - 사이가 아주 짧거나(min_segment_sec 미만), 짧은(max_black_gap_sec 이하) 완전한 검정이면 하나로 합친다
+     (페이드 아웃 → 검은 화면 → 페이드 인 이 한 전환이 되도록. 긴 밤 장면은 합치지 않음)
 3. 종류는 cut / gradual 만 구분한다 (디졸브·와이프 구분은 하지 않음).
    구간 안에 거의 검은 프레임이 있으면 black=True (암전).
 4. cut 두 개 사이가 min_segment_sec 미만이면(플래시 등) 앞 cut 을 지워 앞 segment 에 합친다.
@@ -30,7 +30,9 @@ DEFAULT_PARAMS = {
     "many_threshold": 0.5,
     "many_low": 0.2,
     "gradual_min_frames": 3,
-    "fade_black_luma": 20.0,
+    "fade_black_luma": 20.0,  # 전환 구간 안에 이보다 어두운 프레임이 있으면 black=True
+    "black_gap_luma": 10.0,  # 두 전환 사이가 이보다 어두우면 (거의 완전한 검정) 하나로 합칠 후보
+    "max_black_gap_sec": 2.0,  # 그 검정 구간이 이 길이 이하일 때만 합친다 (밤 장면 보호)
     "min_segment_sec": 0.3,
 }
 
@@ -51,15 +53,35 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     p = {**DEFAULT_PARAMS, **(params or {})}
     fps = fps_of(video_stream(probe(video)))
     frames = read_frames(video, 48, 27, fps)
+    luma = frame_luma(frames)
     single, many = predict(frames)
-    luma = frames.astype(np.float32) @ np.array([0.299, 0.587, 0.114], np.float32)
-    luma = luma.mean(axis=(1, 2))
+    duration = len(frames) / fps
+    del frames
     spans = find_transition_spans(single, many, luma, fps, p)
     transitions = [classify(luma, a, b, gradual, i, fps, p) for i, (a, b, gradual) in enumerate(spans, 1)]
-    duration = len(frames) / fps
     transitions, segments = build_segments(transitions, duration, p["min_segment_sec"])
     p["fps"] = fps
     return save_stage(work_dir, "segments", SegmentsResult(transitions=transitions, segments=segments), p)
+
+
+def frame_luma(frames: np.ndarray, chunk: int = 4096) -> np.ndarray:
+    """프레임별 평균 밝기(0~255)를 계산한다.
+
+    전체를 한 번에 float 로 바꾸면 프레임 배열의 4배 메모리가 들어서, chunk 프레임씩 나눠 계산한다.
+
+    Args:
+        frames: (N, H, W, 3) uint8 RGB.
+        chunk: 한 번에 계산할 프레임 수.
+
+    Returns:
+        (N,) float32 평균 밝기.
+    """
+    weights = np.array([0.299, 0.587, 0.114], np.float32)
+    out = np.empty(len(frames), np.float32)
+    for i in range(0, len(frames), chunk):
+        part = frames[i : i + chunk]
+        out[i : i + len(part)] = (part.reshape(len(part), -1, 3) @ weights).mean(axis=1)
+    return out
 
 
 def predict(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -67,6 +89,7 @@ def predict(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     Args:
         frames: (N, 27, 48, 3) uint8 RGB. TransNetV2 는 이 크기만 받는다.
+            쓰기 가능한 배열이어야 복사 없이 torch 로 넘어간다 (read_frames() 결과는 쓰기 가능).
 
     Returns:
         (single, many). 둘 다 길이 N 의 0~1 확률.
@@ -78,7 +101,7 @@ def predict(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     model = TransNetV2(device="cpu")
     model.eval()
     with torch.no_grad():
-        single, many = model.predict_frames(torch.from_numpy(frames.copy()), quiet=True)
+        single, many = model.predict_frames(torch.from_numpy(frames), quiet=True)
     return single.numpy(), many.numpy()
 
 
@@ -110,7 +133,11 @@ def find_transition_spans(
 
     - many > many_threshold 가 gradual_min_frames 이상 이어지면 점진 전환. 양끝은 many > many_low 까지 넓힌다.
     - single > single_threshold 인 지점 중 점진 전환 밖에 있으면 컷 (한 프레임).
-    - 겹치거나, 사이가 검은 화면이거나, 사이가 min_segment_sec 미만인데 점진 전환이 끼어 있으면 하나로 합친다.
+    - 다음 경우 앞뒤 전환을 하나로 합친다.
+      · 구간이 겹침
+      · 사이가 min_segment_sec 미만인데 점진 전환이 끼어 있음
+      · 사이가 거의 완전한 검정(밝기 < black_gap_luma)이고 max_black_gap_sec 이하 (페이드 아웃 → 검정 → 페이드 인).
+        길이 제한이 없으면 어두운 밤 장면 전체가 전환으로 사라지므로 짧은 검정만 합친다.
 
     Args:
         single: 컷 지점 확률 (predict() 결과).
@@ -139,14 +166,14 @@ def find_transition_spans(
             spans.append((peak, peak, False))
     spans.sort()
 
-    # 겹치거나, 사이가 짧은데 점진 전환이 끼어 있거나, 사이가 검은 화면이면 합친다
     min_gap = p["min_segment_sec"] * fps
+    max_black_gap = p["max_black_gap_sec"] * fps
     merged: list[tuple[int, int, bool]] = []
     for a, b, g in spans:
         if merged:
             pa, pb, pg = merged[-1]
             gap = a - pb - 1
-            black_gap = gap > 0 and luma[pb + 1 : a].max() < p["fade_black_luma"]
+            black_gap = 0 < gap <= max_black_gap and luma[pb + 1 : a].max() < p["black_gap_luma"]
             if gap <= 0 or black_gap or (gap < min_gap and (g or pg)):
                 merged[-1] = (pa, max(pb, b), True)
                 continue
@@ -159,7 +186,7 @@ def classify(
 ) -> Transition:
     """전환 구간 하나를 Transition 으로 만든다.
 
-    구간 안에 밝기 < fade_black_luma 인 프레임이 있으면 black=True (암전).
+    점진 전환 구간 안에 밝기 < fade_black_luma 인 프레임이 있으면 black=True (암전). 컷은 항상 black=False.
 
     Args:
         luma: 프레임별 평균 밝기.
@@ -174,10 +201,12 @@ def classify(
         컷은 start_sec == end_sec == (a + 1) / fps (컷 뒤 첫 프레임의 시작 시각).
         점진 전환은 [a / fps, (b + 1) / fps].
     """
-    black = bool(luma[a : b + 1].min() < p["fade_black_luma"])
     if not gradual:
+        # 컷은 한 시점이라 암전이 아니다 (어두운 장면에서 나오는 컷도 black 이 아님).
+        # 컷 → 짧은 검정 → 컷 은 find_transition_spans 에서 이미 점진 전환 하나로 합쳐진다.
         t = round((a + 1) / fps, 3)
-        return Transition(id=tid, kind="cut", start_sec=t, end_sec=t, black=black)
+        return Transition(id=tid, kind="cut", start_sec=t, end_sec=t, black=False)
+    black = bool(luma[a : b + 1].min() < p["fade_black_luma"])
     start, end = round(a / fps, 3), round((b + 1) / fps, 3)
     return Transition(id=tid, kind="gradual", start_sec=start, end_sec=end, black=black)
 
