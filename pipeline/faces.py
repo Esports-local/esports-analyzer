@@ -23,7 +23,7 @@ from pipeline.schema import FaceCluster, FaceDetection, FacesResult, Segment, Se
 DEFAULT_PARAMS = {
     "model": "insightface/buffalo_l",
     "sample_fps": 2.0,
-    "frame_height": 720,
+    "frame_height": None,  # None 이면 원본 해상도 (작은 얼굴까지 잡기 위해)
     "det_size": 640,
     "min_det_score": 0.6,
     "min_face_px": 40,
@@ -90,15 +90,17 @@ def _segment_at(segments: list[Segment], t: float) -> Segment | None:
     return None
 
 
-def _frame_size(video: Path, height: int) -> tuple[int, int]:
+def _frame_size(video: Path, height: int | None) -> tuple[int, int]:
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                           "stream=width,height", "-of", "csv=p=0", str(video)],
                          check=True, capture_output=True, text=True).stdout.strip().split(",")
     w, h = int(out[0]), int(out[1])
+    if height is None or height == h:
+        return (w, h)
     return (round(w * height / h / 2) * 2, height)
 
 
-def sample_frames(video: Path, segments: list[Segment], fps: float, height: int):
+def sample_frames(video: Path, segments: list[Segment], fps: float, height: int | None):
     """(segment, 시각, BGR 프레임) 을 순서대로 낸다."""
     w, h = _frame_size(video, height)
     size = w * h * 3
