@@ -6,14 +6,19 @@
 
     run_pipeline("/data/ep01.mp4")                                   # 구현된 전 단계
     run_pipeline("/data/ep01.mp4", stages=["segments", "faces"])     # 고른 단계만 (순서는 STAGES 순)
-    run_pipeline("/data/ep01.mp4", start="segments", until="faces")  # 구간 (미구현 단계는 건너뜀)
+    run_pipeline("/data/ep01.mp4", start="segments", until="faces")  # 구간 (포함, 미구현 단계는 건너뜀)
     run_pipeline("/data/ep01.mp4", stages=["faces"], params={"faces": {"cluster_threshold": 0.5}})
 
-각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8).
+각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8, episode 는 analysis/episode.json).
+단계마다 걸린 시간과 프로세스 최대 메모리를 work/run_log.json 에 쌓는다.
 """
 
 import importlib
+import json
 import logging
+import resource
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -22,14 +27,13 @@ STAGES = [
     "preprocess",  # ffprobe 메타데이터·VFR 점검 + 16kHz 모노 wav
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
-    "keyframes",   # segment별 키프레임 추출
     "faces",       # InsightFace 얼굴 검출·임베딩 -> 회차 내 군집 F1, F2 …
-    "asr",         # Silero VAD + faster-whisper (word timestamps)
-    "similarity",  # 인접 segment 연속성 (MobileCLIP 등)
+    "asr",         # faster-whisper (내장 Silero VAD, word timestamps) + 화자 구분(선택) -> 대사 줄
+    "similarity",  # 인접 segment 연속성 (open_clip 화면 유사도 + 대사)
     "scenes",      # segment -> scene 병합
-    "vlm",         # scene별 대표 프레임 + 대사 -> VLM
-    "select",      # 중요 scene 선별
-    "predict",     # 다음 화 예측 + 근거
+    "vlm",         # scene별 대표 프레임 + 대사 -> 지문·유형·키워드 (mock / GPU 백엔드)
+    "episode",     # 최종 결과물 analysis/episode.json
+    # 예측(select/predict)은 api 쪽에서 한다: header 로 1차 LLM 호출 → body 선별 → 2차 호출
 ]
 
 # 구현된 단계 → 모듈. 모듈마다 run(video, work_dir, params) 를 가진다
@@ -38,6 +42,11 @@ IMPLEMENTED = {
     "segments": "pipeline.segments",
     "hls": "pipeline.hls",
     "faces": "pipeline.faces",
+    "asr": "pipeline.asr",
+    "similarity": "pipeline.similarity",
+    "scenes": "pipeline.scenes",
+    "vlm": "pipeline.vlm",
+    "episode": "pipeline.episode",
 }
 
 
@@ -117,6 +126,31 @@ def run_pipeline(
             results[name] = None
             continue
         log.info("[%s] 시작", name)
+        t0 = time.monotonic()
         results[name] = run_stage(name, video, work_dir, (params or {}).get(name))
-        log.info("[%s] 완료 → %s", name, results[name])
+        elapsed = time.monotonic() - t0
+        peak_mb = _peak_rss_mb()
+        log.info("[%s] 완료 %.1f초, 최대 메모리 %.0fMB → %s", name, elapsed, peak_mb, results[name])
+        _append_run_log(work_dir, name, elapsed, peak_mb)
     return results
+
+
+def _peak_rss_mb() -> float:
+    """이 프로세스의 지금까지 최대 메모리(MB). 리눅스 ru_maxrss 는 KB 단위.
+
+    단계별 값이 아니라 프로세스 누적 최대값이다. 단계 하나의 메모리를 정확히 보려면 그 단계만 따로 실행한다.
+    """
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+
+
+def _append_run_log(work_dir: Path, stage: str, elapsed: float, peak_mb: float) -> None:
+    """work/run_log.json 에 단계 실행 기록을 한 줄 추가한다 (시간·메모리 점검용)."""
+    path = work_dir / "work" / "run_log.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        log_entries = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        log_entries = []
+    log_entries.append({"stage": stage, "elapsed_sec": round(elapsed, 2), "peak_rss_mb": round(peak_mb, 1),
+                        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    path.write_text(json.dumps(log_entries, ensure_ascii=False, indent=2), encoding="utf-8")

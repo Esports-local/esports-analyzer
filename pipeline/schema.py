@@ -122,18 +122,6 @@ class SegmentsResult(BaseModel):
 # JSON 대신 hls/index.m3u8 이 결과다 (모듈 docstring 의 #EXTINF 표시 참고).
 
 
-# ---------------------------------------------------------------- keyframes
-
-class Keyframe(BaseModel):
-    segment_id: int
-    time_sec: float
-    path: str  # frames/seg_0001.jpg
-
-
-class KeyframesResult(BaseModel):
-    keyframes: list[Keyframe]
-
-
 # ---------------------------------------------------------------- faces (InsightFace)
 
 class FaceDetection(BaseModel):
@@ -200,8 +188,11 @@ class SimilarityResult(BaseModel):
 # ---------------------------------------------------------------- scenes (병합)
 
 class Scene(TimeSpan):
+    """segment 를 묶은 장면. 씬 안의 점진 전환 구간도 씬 시간 범위에 포함된다."""
+
     id: int
     segment_ids: list[int]
+    black_before: bool = False  # 암전 뒤에 시작하는 scene
 
 
 class ScenesResult(BaseModel):
@@ -215,8 +206,7 @@ class SceneAnalysis(BaseModel):
     type: SceneType
     summary: str
     keywords: list[str] = []
-    characters: list[int] = []  # header.characters 의 id
-    keyframe_paths: list[str] = []  # VLM 에 넣은 대표 프레임 (3~5장)
+    frame_times: list[float] = []  # VLM 에 넣은 대표 프레임 시각 (3~5장, vlm 단계가 직접 뽑음)
 
 
 class VlmResult(BaseModel):
@@ -258,6 +248,16 @@ class SpeakerSummary(BaseModel):
     samples: list[str] = []  # 대표 대사 몇 개
 
 
+class FaceSummary(BaseModel):
+    """api 의 얼굴 매핑 화면용. 이미지 파일은 저장하지 않으므로 시각 + 위치로 영상(hls)에서 얼굴을 잘라 보여준다."""
+
+    face_id: str
+    count: int  # 검출된 얼굴 수
+    scene_ids: list[int]
+    sample_time_sec: float  # 대표 얼굴이 나온 시각
+    sample_bbox: tuple[float, float, float, float]  # 그 시각 프레임에서의 위치 (0~1)
+
+
 class EpisodeAnalysis(BaseModel):
     """outputs/<영상명>/analysis/episode.json. 회차 하나의 최종 분석 결과 (영상 내용만)."""
 
@@ -266,6 +266,7 @@ class EpisodeAnalysis(BaseModel):
     duration_sec: float
     scenes: list[AnalysisScene]
     speakers: list[SpeakerSummary]
+    faces: list[FaceSummary] = []
 
 
 # ---------------------------------------------------------------- LLM 입력 문서 (회차별 header + body)

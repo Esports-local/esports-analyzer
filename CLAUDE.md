@@ -21,7 +21,7 @@ docker run --rm -v "$PWD":/app -v ~/vod-data:/data vod-main python -m pipeline /
 현재 Dockerfile은 CPU용. GPU 서버용은 CUDA 베이스 이미지로 별도 작성 예정.
 
 ## 모델 (설계안)
-TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · InsightFace buffalo_l(얼굴 검출·인식, CPU, 비상업 연구용) · MobileCLIP S0(화면 유사도, CPU) · Silero VAD(CPU) · faster-whisper small INT8(ASR, CPU 가능)
+TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · InsightFace buffalo_l(얼굴 검출·인식, CPU, 비상업 연구용) · open_clip 이미지 임베딩(화면 유사도, 기본 ViT-B-32, MobileCLIP 은 이름·라이선스 확인 후 교체) · faster-whisper(ASR, Silero VAD 내장) · pyannote Community-1(화자 구분, 선택, HF_TOKEN)
 · Qwen3-VL 2B/4B 4bit(VLM, GPU) · 예측 LLM은 미정.
 
 ## 개발 제약
@@ -29,16 +29,18 @@ TransNetV2(전환 검출: 컷·디졸브·와이프·페이드, CPU) · InsightF
 VLM은 백엔드 인터페이스로 분리: `mock`(로컬) / `mlx`(Apple Silicon, 가능 여부 확인 필요) / `transformers`·`vLLM`(GPU 서버).
 
 ## 작업 순서
-1. preprocess (ffprobe + 16kHz wav) → segments (전환 검출) → hls (전환 기준 ts ≤4초) → keyframes → faces (얼굴 군집 F1/F2…) (짧은 클립으로 검증)
+1. preprocess (ffprobe + 16kHz wav) → segments (전환 검출) → hls (전환 기준 ts ≤4초) → faces (얼굴 군집 F1/F2…) (짧은 클립으로 검증)
 2. asr (word_timestamps 사용, 컷을 넘는 대사는 자르지 않음, 화자 라벨 S1/S2…)
-3. similarity → scenes, ts·segment·scene 경계를 눈으로 확인하는 검수 HTML
-4. vlm (mock부터) → select → predict (body 구성은 미정)
+3. similarity (segment 대표 프레임을 직접 뽑아 비교) → scenes
+   - 라벨링 결과 확인은 별도 레포의 웹에서 한다 (이 레포에는 검수 HTML 을 두지 않음)
+4. vlm (mock부터) → episode (최종 `analysis/episode.json`)
+   - 예측(1차 LLM: header → body 선별 → 2차 LLM)은 api 쪽에서 한다
 5. 큐 + 워커, api 연동 (스펙 확정 후)
 
 ## 규칙 요약 (상세는 PLAN.md)
 - 시간은 초 단위 float, 단계 결과 JSON에는 `schema_version`
-- 결과 파일은 MinIO 구조(`hls/`, `frames/`, `analysis/`)에 맞춰 저장
-  - `work/`: 단계별 중간 JSON (외부 공개 안 함) · `hls/`: 영상 구조(m3u8) · `analysis/`: 영상 내용(JSON)
+- 결과 파일은 MinIO 구조(`hls/`, `analysis/`)에 맞춰 저장 (썸네일은 쓰지 않으므로 `frames/` 없음)
+  - `work/`: 단계별 중간 결과·키프레임 (외부 공개 안 함) · `hls/`: 영상 구조(m3u8) · `analysis/`: 영상 내용(JSON)
 - 패키지는 `requirements.txt`에 `==` 고정 후 이미지 재빌드 (로컬 가상환경 안 씀)
 
 ## 커밋 규칙
