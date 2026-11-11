@@ -16,16 +16,10 @@ pillow==12.3.0
 tqdm==4.67.3
 ffmpeg-python==0.2.0
 
-# faces: InsightFace buffalo_l (사전학습 모델은 비상업 연구용 라이선스)
-insightface==2.1
-onnxruntime==1.30.0
-onnx==1.23.2
-opencv-python==4.13.0.92
-scipy==1.18.1
-scikit-image==0.26.0
-
-# roi_ocr: RapidOCR (글자 인식만 사용). onnxruntime·opencv 는 위에서 고정
+# roi_ocr: RapidOCR (글자 인식만 사용)과 의존성
 rapidocr-onnxruntime==1.4.4
+onnxruntime==1.30.0
+opencv-python==4.13.0.92
 pyclipper==1.4.0
 PyYAML==6.0.3
 shapely==2.2.0
@@ -34,7 +28,5 @@ six==1.17.0
 # --- 아래는 로컬 CPU 이미지에서 빌드·실행 확인 (2026-11-11). GPU 이미지는 별도 확인 ---
 # asr: faster-whisper (Silero VAD 내장). 모델은 첫 실행 때 HF_HOME 캐시에 받음
 faster-whisper==1.2.1
-# similarity: open_clip 이미지 임베딩. MobileCLIP 은 모델 이름·라이선스 확인 후 params 로 교체
-open-clip-torch==4.2.2
 # asr 화자 구분 (선택): pyannote Community-1. HF_TOKEN 필요. 버전 확인 후 주석 해제
 # pyannote.audio==4.?

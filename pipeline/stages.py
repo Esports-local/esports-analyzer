@@ -4,12 +4,12 @@
 
     from pipeline import run_pipeline
 
-    run_pipeline("/data/ep01.mp4")                                   # 구현된 전 단계
-    run_pipeline("/data/ep01.mp4", stages=["segments", "faces"])     # 고른 단계만 (순서는 STAGES 순)
-    run_pipeline("/data/ep01.mp4", start="segments", until="faces")  # 구간 (포함, 미구현 단계는 건너뜀)
-    run_pipeline("/data/ep01.mp4", stages=["faces"], params={"faces": {"cluster_threshold": 0.5}})
+    run_pipeline("/data/game.mp4")                                   # 구현된 전 단계
+    run_pipeline("/data/game.mp4", stages=["preprocess", "asr"])    # 고른 단계만 (순서는 STAGES 순)
+    run_pipeline("/data/game.mp4", start="segments", until="roi_ocr")  # 구간 (포함, 미구현 단계는 건너뜀)
+    run_pipeline("/data/game.mp4", stages=["roi_ocr"], params={"roi_ocr": {"sample_fps": 1}})
 
-각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8, episode 는 analysis/episode.json).
+각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8).
 단계마다 걸린 시간과 프로세스 최대 메모리를 work/run_log.json 에 쌓는다.
 """
 
@@ -28,13 +28,9 @@ STAGES = [
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
     "roi_ocr",     # 중계 화면 고정 영역(선수·팀·KDA·골드·시간) OCR -> 값이 이어진 구간
-    "faces",       # InsightFace 얼굴 검출·임베딩 -> 회차 내 군집 F1, F2 …
-    "asr",         # faster-whisper (내장 Silero VAD, word timestamps) + 화자 구분(선택) -> 대사 줄
-    "similarity",  # 인접 segment 연속성 (open_clip 화면 유사도 + 대사)
-    "scenes",      # segment -> scene 병합
-    "vlm",         # scene별 대표 프레임 + 대사 -> 지문·유형·키워드 (mock / GPU 백엔드)
-    "episode",     # 최종 결과물 analysis/episode.json
-    # 예측(select/predict)은 api 쪽에서 한다: header 로 1차 LLM 호출 → body 선별 → 2차 호출
+    "asr",         # faster-whisper (내장 Silero VAD, word timestamps) -> 해설 대사 줄
+    "translate",   # 대사 번역 (조건 A 음성만 / B +OCR / C +영상) — 예정
+    "evaluate",    # 고유명사 오역 판정·조건별 집계 — 예정
 ]
 
 # 구현된 단계 → 모듈. 모듈마다 run(video, work_dir, params) 를 가진다
@@ -43,12 +39,7 @@ IMPLEMENTED = {
     "segments": "pipeline.segments",
     "hls": "pipeline.hls",
     "roi_ocr": "pipeline.roi_ocr",
-    "faces": "pipeline.faces",
     "asr": "pipeline.asr",
-    "similarity": "pipeline.similarity",
-    "scenes": "pipeline.scenes",
-    "vlm": "pipeline.vlm",
-    "episode": "pipeline.episode",
 }
 
 
@@ -87,7 +78,7 @@ def run_pipeline(
     """영상 하나에 대해 여러 단계를 STAGES 순서대로 실행한다.
 
     아직 구현하지 않은 단계는 경고만 남기고 건너뛴다. 단계끼리는 work/ 의 중간 결과로 이어지므로,
-    앞 단계를 이미 돌렸다면 뒤 단계만 골라 실행해도 된다 (예: faces 는 work/segments.json 이 필요).
+    앞 단계를 이미 돌렸다면 뒤 단계만 골라 실행해도 된다 (예: hls 는 work/segments.json, asr 는 work/preprocess.json 이 필요).
 
     Args:
         video: 원본 영상 경로.

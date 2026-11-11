@@ -1,7 +1,7 @@
 """preprocess 단계: 영상 기본 정보와 asr 입력 오디오를 준비한다.
 
 1. ffprobe 로 길이·해상도·fps·코덱을 읽고, 패킷 시각 간격으로 VFR 여부를 판단한다.
-   VFR 이어도 원본은 바꾸지 않는다. 프레임을 읽는 단계(segments, faces)가 fps 필터로 CFR 에 맞춰 읽는다.
+   VFR 이어도 원본은 바꾸지 않는다. 프레임을 읽는 단계(segments, roi_ocr)가 fps 필터로 CFR 에 맞춰 읽는다.
 2. 오디오를 16kHz 모노 wav(work/audio.wav)로 뽑는다 (Silero VAD, faster-whisper 입력). 음량 정규화는 하지 않는다.
 """
 

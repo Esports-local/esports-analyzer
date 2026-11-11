@@ -4,12 +4,8 @@ import json
 import subprocess
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from pipeline.schema import Segment
 
 
 def probe(video: Path) -> dict:
@@ -140,14 +136,6 @@ def is_vfr(video: Path, fps: float, tolerance: float = 0.5) -> bool:
     return bool(np.any(np.abs(gaps - 1 / fps) > tolerance / fps))
 
 
-def segment_at(segments: list["Segment"], t: float) -> "Segment | None":
-    """시각 t 가 속한 segment 를 찾는다. 전환 구간이면 None."""
-    for s in segments:
-        if s.start_sec <= t < s.end_sec:
-            return s
-    return None
-
-
 def frame_size(video: Path, height: int | None) -> tuple[int, int]:
     """프레임을 읽을 크기를 정한다.
 
@@ -183,61 +171,3 @@ def read_frame_at(video: Path, t: float, width: int, height: int) -> np.ndarray 
     if len(raw) != width * height * 3:
         return None
     return np.frombuffer(raw, np.uint8).reshape(height, width, 3)
-
-
-def sample_segment_frames(video: Path, segments: list["Segment"], fps: float, height: int | None):
-    """segment 구간에서 프레임을 뽑는다.
-
-    전체 영상을 fps 간격(CFR)으로 읽어 segment 안에 있는 프레임만 낸다 (전환 구간은 건너뜀).
-    그 간격보다 짧아 프레임을 하나도 받지 못한 segment 는 가운데 프레임을 따로 뽑는다.
-    ffmpeg 가 중간에 실패하면 일부만 처리한 결과를 저장하지 않도록 예외를 낸다.
-    호출 쪽이 중간에 멈추거나 예외가 나면 ffmpeg 프로세스를 정리한다.
-
-    Args:
-        video: 영상 경로.
-        segments: segments 단계 결과.
-        fps: 초당 뽑을 프레임 수.
-        height: 프레임 높이. None 이면 원본.
-
-    Yields:
-        (segment, 시각(초), BGR 프레임 (H, W, 3) uint8).
-
-    Raises:
-        RuntimeError: ffmpeg 가 실패함.
-    """
-    w, h = frame_size(video, height)
-    size = w * h * 3
-    proc = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(video), "-an",
-                             "-vf", f"fps={fps},scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "bgr24", "pipe:"],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    covered: set[int] = set()
-    try:
-        k = 0
-        while True:
-            buf = proc.stdout.read(size)
-            if len(buf) < size:
-                break
-            t = k / fps
-            k += 1
-            seg = segment_at(segments, t)
-            if seg is not None:
-                covered.add(seg.id)
-                yield seg, t, np.frombuffer(buf, np.uint8).reshape(h, w, 3)
-        err = proc.stderr.read().decode(errors="replace")
-        proc.wait()
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg 프레임 읽기 실패 ({proc.returncode}): {err.strip()}")
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
-
-    for seg in segments:  # 샘플이 하나도 없던 짧은 segment 는 가운데 프레임
-        if seg.id in covered:
-            continue
-        t = (seg.start_sec + seg.end_sec) / 2
-        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1",
-                              "-vf", f"scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "bgr24", "pipe:"],
-                             check=True, capture_output=True).stdout
-        if len(raw) == size:
-            yield seg, t, np.frombuffer(raw, np.uint8).reshape(h, w, 3)
