@@ -1,7 +1,7 @@
 """로컬 실행 (컨테이너 안). run_pipeline() 을 감싼 CLI.
 
-docker run --rm -v "$PWD":/app -v ~/vod-data:/data storycast-analyzer python -m pipeline /data/ep01.mp4 --until faces
-docker run --rm -v "$PWD":/app -v ~/vod-data:/data storycast-analyzer python -m pipeline /data/ep01.mp4 --only segments,faces
+docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/ep01.mp4 --until faces
+docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/ep01.mp4 --only segments,faces
 """
 
 import argparse

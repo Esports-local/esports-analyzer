@@ -1,4 +1,4 @@
-"""음성 합성(macOS say) 대사를 입힌 테스트 클립을 만든다. 호스트(맥)에서 실행, ffmpeg 는 storycast-analyzer 컨테이너.
+"""음성 합성(macOS say) 대사를 입힌 테스트 클립을 만든다. 호스트(맥)에서 실행, ffmpeg 는 esports-analyzer 컨테이너.
 
 구성 (60초, 1280x720, 25fps)
 - 씬1 0~25초: t1.jpg 단체 사진 (전체 → 왼쪽 → 오른쪽 → 전체, 하드컷). 한국어 대화. 둘째 대사가 7초 컷을 넘는다.
@@ -92,7 +92,7 @@ def main():
            "ffmpeg -v error -y " + " ".join(f'"{a}"' if " " in a or "$" in a or "=" in a else a for a in args)
            + f' -filter_complex "{";".join(filt)}" -map "[v]" -map "[a]" -t 60'
            f" -c:v libx264 -crf 20 -pix_fmt yuv420p -c:a aac -b:a 128k {OUT}")
-    subprocess.run(["docker", "run", "--rm", "-v", f"{ROOT}:/app", "-w", "/app", "storycast-analyzer", "sh", "-c", cmd], check=True)
+    subprocess.run(["docker", "run", "--rm", "-v", f"{ROOT}:/app", "-w", "/app", "esports-analyzer", "sh", "-c", cmd], check=True)
     print("made", OUT)
 
 

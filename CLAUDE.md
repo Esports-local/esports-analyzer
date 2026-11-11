@@ -1,4 +1,4 @@
-# storycast-analyzer — 분석 파이프라인 (FastAPI)
+# esports-analyzer — 분석 파이프라인 (FastAPI)
 
 > 프로젝트 전체 구성, 결정 사항, 저장소 구조는 **`../PLAN.md`가 기준**이다. 작업 전에 반드시 읽는다.
 > api ↔ main 연동 스펙은 아직 미정이다. 현재 `app/`의 엔드포인트와 필드 이름은 임시이며, 확정 전에 바꾸지 말고 파이프라인 구현에 집중한다.
@@ -14,9 +14,9 @@ VOD 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는
 - `app/`: FastAPI (임시)
 
 ```
-docker build -t storycast-analyzer .
-docker run --rm -p 8001:8001 -v "$PWD":/app storycast-analyzer uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-docker run --rm -v "$PWD":/app -v ~/vod-data:/data storycast-analyzer python -m pipeline /data/ep01.mp4 --until segments
+docker build -t esports-analyzer .
+docker run --rm -p 8001:8001 -v "$PWD":/app esports-analyzer uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/ep01.mp4 --until segments
 ```
 현재 Dockerfile은 CPU용. GPU 서버용은 CUDA 베이스 이미지로 별도 작성 예정.
 
