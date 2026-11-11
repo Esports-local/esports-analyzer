@@ -21,14 +21,18 @@
 - [ ] hls 화질(CRF 20 / 23 / 26) 결정 → `scripts/compare_crf.py`
 
 ## 파이프라인 단계 (코드 작성 완료, 워크스테이션에서 빌드·실행 검증 필요)
-- [ ] asr: faster-whisper(내장 VAD) + 대사 줄 묶기 + 줄별 언어 → 실행 검증
+- [x] asr: VAD 덩어리마다 언어 감지 후 받아쓰기 (합성 음성 한·일 대사로 실행 확인, 2026-11-11)
+  - [ ] 실제 대사로 받아쓰기 정확도·`language_min_prob`(0.7) 확인, 모델 크기(small → medium/large-v3) 결정
 - [ ] asr 화자 구분: pyannote 연결 코드만 있음 → HF_TOKEN, 버전 고정, 실행 검증
-- [ ] similarity: open_clip 화면 유사도 + 대사 연속성 → 실행 검증, MobileCLIP 교체 여부
-- [ ] scenes: 초기 규칙 (암전 분리, 대사 연속, 유사도 기준) → 실제 영상으로 기준값 조정
-- [ ] vlm: mock 백엔드 → 실행 검증 / GPU 백엔드(Qwen3-VL) 구현
-- [ ] episode: 최종 `analysis/episode.json` (씬·대사·얼굴 + 화자/얼굴 요약) → 실행 검증
+- [x] similarity: open_clip 화면 유사도 + 대사 연속성 (합성 영상으로 실행 확인)
+  - [ ] MobileCLIP 교체 여부. 같은 사진의 다른 구도끼리도 visual 0.73~0.75 라 기준값 0.80 확인 필요
+- [x] scenes: 초기 규칙 (합성 영상에서 의도한 3씬으로 나뉨)
+  - [ ] 실제 영상으로 기준값 조정
+- [x] vlm: mock 백엔드 실행 확인
+  - [ ] GPU 백엔드(Qwen3-VL) 구현 (워크스테이션)
+- [x] episode: 최종 `analysis/episode.json` 실행 확인 (화자 요약은 화자 구분이 꺼져 있어 비어 있음)
 - [ ] 이미지 빌드: faster-whisper, open-clip-torch 설치 확인, 모델 캐시(HF_HOME) 볼륨
-- [ ] api·ui 개발용 샘플 결과물 (합성 영상으로 끝까지 돌린 `episode.json` + m3u8)
+- [x] api·ui 개발용 샘플 결과물: `scripts/make_tts_clip.py` 로 만든 60초 합성 클립 → `outputs/tts_drama/` (`hls/`, `analysis/episode.json`)
 
 ## 인물 연결
 - [ ] 화자 ↔ 얼굴 연결 (Light-ASD)

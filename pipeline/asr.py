@@ -1,7 +1,9 @@
 """asr 단계: 음성을 받아 적고, 화자 라벨을 붙여 대사 줄로 묶는다.
 
-1. 받아쓰기: faster-whisper (내장 Silero VAD 로 말소리 구간만 처리, 단어 단위 시각 포함).
-   한국어 외 대사(일본어·영어 등)가 섞이므로 언어를 고정하지 않는다.
+1. 받아쓰기: faster-whisper. 한국어 외 대사(일본어·영어 등)가 대사 단위로 섞이므로
+   Silero VAD 로 말소리 덩어리를 나누고, 덩어리마다 언어를 감지한 뒤 그 언어로 받아 적는다 (단어 단위 시각 포함).
+   Whisper 의 기본 동작(처음 30초로 언어 하나를 정함)이나 multilingual(30초 창마다 감지)은
+   대사마다 언어가 바뀌면 다른 언어 대사를 빠뜨리거나 엉뚱한 언어로 적는다.
 2. 화자 구분(선택): diarization 백엔드가 있으면 단어마다 가장 많이 겹치는 화자를 붙인다.
    - "none": 화자 구분 안 함 (speaker = None). 기본값
    - "pyannote": pyannote Community-1. 환경변수 HF_TOKEN 필요 (아직 검증 안 됨)
@@ -9,14 +11,18 @@
    - 화자가 있으면: 같은 화자의 단어가 merge_gap_sec 이내로 이어지면 한 줄 (한 사람이 이어서 말한 덩어리).
    - 화자가 없으면: Whisper 가 나눈 구간을 그대로 한 줄로 쓴다 (서로 다른 사람의 대사가 합쳐지지 않게).
    - 컷·ts 경계는 고려하지 않는다 (대사를 자르지 않음).
-4. 언어: 대사 줄마다 감지한다 (작업 파일 work/asr.json 에만 남음).
+4. 언어: 말소리 덩어리의 감지 결과를 대사 줄에 남긴다 (작업 파일 work/asr.json 에만 남음).
 
 입력: work/audio.wav (preprocess)
 출력: work/asr.json
 """
 
 import os
+import wave
+from collections import Counter
 from pathlib import Path
+
+import numpy as np
 
 from pipeline.io import load_stage, save_stage
 from pipeline.schema import AsrResult, Line, PreprocessResult, Word
@@ -26,11 +32,16 @@ DEFAULT_PARAMS = {
     "device": "auto",  # auto / cpu / cuda
     "compute_type": "default",  # default 면 cuda=float16, cpu=int8
     "beam_size": 5,
-    "vad_filter": True,
+    "languages": ["ko", "ja", "en"],  # 감지 후보 언어. 이 중 확률이 가장 높은 것을 고른다
+    "default_language": "ko",  # 감지가 불확실하거나 덩어리가 짧을 때 쓸 언어
+    "language_min_prob": 0.7,  # default_language 가 아닌 언어로 바꾸려면 확률이 이 이상이어야 한다
+    "min_detect_sec": 1.0,  # 이보다 짧은 덩어리는 감지하지 않고 default_language
+    "vad_min_silence_ms": 500,  # 이 이상 조용하면 말소리 덩어리를 나눈다
+    "chunk_pad_sec": 0.2,  # 덩어리 앞뒤 여유
+    "chunk_max_sec": 30.0,  # 덩어리 최대 길이 (Whisper 창 길이)
     "diarization": "none",  # none / pyannote
     "merge_gap_sec": 1.0,  # 같은 화자 단어 사이가 이 이하면 같은 줄
     "max_line_sec": 30.0,  # 한 줄이 이보다 길어지면 끊는다
-    "detect_line_language": True,
 }
 
 
@@ -54,16 +65,33 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         raise RuntimeError("오디오 트랙이 없어 asr 을 할 수 없습니다")
     audio = work_dir / pre.audio_file.path
 
+    samples = load_wav(audio)
     model = load_whisper(p["model"], p["device"], p["compute_type"])
-    segments = transcribe(model, audio, p)
+    segments = transcribe(model, samples, p)
     turns = diarize(audio, p["diarization"])
     if turns:
         lines = lines_from_words(segments, turns, p["merge_gap_sec"], p["max_line_sec"])
     else:
         lines = lines_from_segments(segments)
-    if p["detect_line_language"]:
-        attach_languages(model, audio, lines)
     return save_stage(work_dir, "asr", AsrResult(lines=lines), p)
+
+
+SAMPLE_RATE = 16000
+
+
+def load_wav(path: Path) -> np.ndarray:
+    """preprocess 가 만든 16kHz 모노 16bit wav 를 float32 배열로 읽는다.
+
+    faster-whisper 의 decode_audio(PyAV) 는 PyAV 버전에 따라 깨져서 쓰지 않는다 (av 19 에서 metadata_errors 인자 오류).
+
+    Raises:
+        ValueError: 16kHz 모노 16bit 가 아님.
+    """
+    with wave.open(str(path)) as w:
+        if (w.getframerate(), w.getnchannels(), w.getsampwidth()) != (SAMPLE_RATE, 1, 2):
+            raise ValueError(f"16kHz 모노 16bit wav 가 아님: {path}")
+        data = w.readframes(w.getnframes())
+    return np.frombuffer(data, dtype="<i2").astype(np.float32) / 32768.0
 
 
 def load_whisper(size: str, device: str, compute_type: str):
@@ -86,32 +114,83 @@ def load_whisper(size: str, device: str, compute_type: str):
     return WhisperModel(size, device=device, compute_type=compute_type)
 
 
-def transcribe(model, audio: Path, p: dict) -> list[dict]:
-    """음성을 받아 적는다.
+def speech_chunks(samples: np.ndarray, p: dict) -> list[tuple[int, int]]:
+    """Silero VAD 로 말소리 덩어리를 나눈다.
+
+    Args:
+        samples: 16kHz 모노 float32.
+        p: 설정 (vad_min_silence_ms, chunk_pad_sec, chunk_max_sec).
+
+    Returns:
+        (시작 샘플, 끝 샘플) 목록. 앞뒤로 chunk_pad_sec 여유를 둔다.
+    """
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+    opts = VadOptions(min_silence_duration_ms=p["vad_min_silence_ms"], max_speech_duration_s=p["chunk_max_sec"])
+    pad = int(p["chunk_pad_sec"] * SAMPLE_RATE)
+    out = []
+    for ts in get_speech_timestamps(samples, opts):
+        a = max(0, ts["start"] - pad)
+        if out and a < out[-1][1]:
+            a = out[-1][1]
+        out.append((a, min(len(samples), ts["end"] + pad)))
+    return out
+
+
+def detect_language(model, chunk: np.ndarray, p: dict) -> tuple[str, float]:
+    """덩어리의 언어를 후보 언어(languages) 안에서 고른다.
+
+    대부분 대사는 default_language 이므로, 다른 언어로 바꾸는 것은 확률이 language_min_prob 이상일 때만 한다.
+    (짧은 덩어리나 억양이 특이한 목소리는 다른 언어로 잘못 감지되기 쉽다. 합성 음성 테스트에서
+    한국어 대사가 ja 0.25~0.68 로 나왔고, 실제 일본어 대사는 0.97~0.99 였다.)
+
+    Returns:
+        (언어, 확률). 짧거나 불확실하면 (default_language, 확률 또는 0.0).
+    """
+    if len(chunk) < p["min_detect_sec"] * SAMPLE_RATE:
+        return p["default_language"], 0.0
+    _lang, _prob, all_probs = model.detect_language(chunk)
+    cands = [(lang, prob) for lang, prob in all_probs if lang in p["languages"]]
+    if not cands:
+        return p["default_language"], 0.0
+    lang, prob = max(cands, key=lambda x: x[1])
+    if lang != p["default_language"] and prob < p["language_min_prob"]:
+        return p["default_language"], float(prob)
+    return lang, float(prob)
+
+
+def transcribe(model, samples: np.ndarray, p: dict) -> list[dict]:
+    """말소리 덩어리마다 언어를 감지하고 그 언어로 받아 적는다.
 
     Args:
         model: load_whisper() 결과.
-        audio: 16kHz 모노 wav 경로.
+        samples: load_wav() 결과 (16kHz 모노 float32).
         p: 설정.
 
     Returns:
-        Whisper 구간 목록. 각 {"start", "end", "text", "words": [{"start", "end", "text", "raw", "prob"}]}.
+        Whisper 구간 목록 (시간순, 전체 기준 초).
+        각 {"start", "end", "text", "language", "language_prob", "words": [{"start", "end", "text", "raw", "prob"}]}.
         raw 는 Whisper 가 준 조각 그대로 (앞 공백 포함). 일본어처럼 띄어쓰기 없는 언어도 그대로 이어 붙일 수 있다.
     """
-    segs, _info = model.transcribe(
-        str(audio),
-        language=None,  # 다국어 대사가 섞이므로 고정하지 않는다
-        beam_size=p["beam_size"],
-        vad_filter=p["vad_filter"],
-        word_timestamps=True,
-        condition_on_previous_text=False,  # 앞 대사에 끌려 엉뚱한 문장을 반복하는 것을 줄인다
-    )
     out = []
-    for s in segs:
-        words = [{"start": float(w.start), "end": float(w.end), "text": w.word.strip(), "raw": w.word,
-                  "prob": float(w.probability)}
-                 for w in (s.words or []) if w.word.strip()]
-        out.append({"start": float(s.start), "end": float(s.end), "text": s.text.strip(), "words": words})
+    for a, b in speech_chunks(samples, p):
+        chunk = samples[a:b]
+        offset = a / SAMPLE_RATE
+        lang, lang_prob = detect_language(model, chunk, p)
+        segs, _info = model.transcribe(
+            chunk,
+            language=lang,
+            beam_size=p["beam_size"],
+            vad_filter=False,  # 이미 VAD 로 나눈 덩어리
+            word_timestamps=True,
+            condition_on_previous_text=False,  # 앞 대사에 끌려 엉뚱한 문장을 반복하는 것을 줄인다
+        )
+        for s in segs:
+            words = [{"start": offset + float(w.start), "end": offset + float(w.end), "text": w.word.strip(),
+                      "raw": w.word, "prob": float(w.probability), "language": lang}
+                     for w in (s.words or []) if w.word.strip()]
+            out.append({"start": offset + float(s.start), "end": offset + float(s.end), "text": s.text.strip(),
+                        "language": lang, "language_prob": round(lang_prob, 3), "words": words})
     return out
 
 
@@ -195,6 +274,7 @@ def lines_from_words(segments: list[dict], turns: list[tuple[float, float, str]]
         if cur:
             lines.append(Line(id=len(lines) + 1, start_sec=round(cur[0]["start"], 3), end_sec=round(cur[-1]["end"], 3),
                               speaker=cur_spk, text=_join(w["raw"] for w in cur),
+                              language=Counter(w["language"] for w in cur).most_common(1)[0][0],
                               words=[Word(start_sec=round(w["start"], 3), end_sec=round(max(w["end"], w["start"]), 3),
                                           text=w["text"], prob=round(w["prob"], 3)) for w in cur]))
 
@@ -224,7 +304,7 @@ def lines_from_segments(segments: list[dict]) -> list[Line]:
         if not s["text"]:
             continue
         lines.append(Line(id=len(lines) + 1, start_sec=round(s["start"], 3), end_sec=round(max(s["end"], s["start"]), 3),
-                          speaker=None, text=s["text"],
+                          speaker=None, text=s["text"], language=s["language"],
                           words=[Word(start_sec=round(w["start"], 3), end_sec=round(max(w["end"], w["start"]), 3),
                                       text=w["text"], prob=round(w["prob"], 3)) for w in s["words"]]))
     return lines
@@ -233,31 +313,3 @@ def lines_from_segments(segments: list[dict]) -> list[Line]:
 def _join(tokens) -> str:
     """Whisper 단어 조각(앞 공백 포함)을 그대로 이어 문장을 만든다. 띄어쓰기는 Whisper 출력을 따른다."""
     return "".join(tokens).strip()
-
-
-def attach_languages(model, audio: Path, lines: list[Line]) -> None:
-    """대사 줄마다 언어를 감지해 line.language 에 넣는다.
-
-    faster-whisper 의 detect_language(오디오 조각) 를 쓴다. 이 함수가 없는 버전이면 감지하지 않는다.
-    너무 짧은 줄(0.5초 미만)은 감지가 불안정해서 건너뛴다.
-
-    Args:
-        model: load_whisper() 결과.
-        audio: 16kHz 모노 wav 경로.
-        lines: 언어를 채울 대사 줄 (제자리 수정).
-    """
-    if not hasattr(model, "detect_language"):
-        return
-    from faster_whisper import decode_audio
-
-    sr = 16000
-    samples = decode_audio(str(audio), sampling_rate=sr)
-    for line in lines:
-        if line.end_sec - line.start_sec < 0.5:
-            continue
-        chunk = samples[int(line.start_sec * sr): int(line.end_sec * sr)]
-        try:
-            lang, _prob, _all = model.detect_language(chunk)
-        except Exception:
-            continue
-        line.language = lang

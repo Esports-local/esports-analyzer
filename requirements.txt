@@ -24,7 +24,7 @@ opencv-python==4.13.0.92
 scipy==1.18.1
 scikit-image==0.26.0
 
-# --- 아래는 아직 빌드·실행해 보지 않음 (워크스테이션에서 이미지 빌드 시 확인) ---
+# --- 아래는 로컬 CPU 이미지에서 빌드·실행 확인 (2026-11-11). GPU 이미지는 별도 확인 ---
 # asr: faster-whisper (Silero VAD 내장). 모델은 첫 실행 때 HF_HOME 캐시에 받음
 faster-whisper==1.2.1
 # similarity: open_clip 이미지 임베딩. MobileCLIP 은 모델 이름·라이선스 확인 후 params 로 교체
