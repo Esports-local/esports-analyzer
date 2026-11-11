@@ -27,6 +27,7 @@ STAGES = [
     "preprocess",  # ffprobe 메타데이터·VFR 점검 + 16kHz 모노 wav
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
+    "roi_ocr",     # 중계 화면 고정 영역(선수·팀·KDA·골드·시간) OCR -> 값이 이어진 구간
     "faces",       # InsightFace 얼굴 검출·임베딩 -> 회차 내 군집 F1, F2 …
     "asr",         # faster-whisper (내장 Silero VAD, word timestamps) + 화자 구분(선택) -> 대사 줄
     "similarity",  # 인접 segment 연속성 (open_clip 화면 유사도 + 대사)
@@ -41,6 +42,7 @@ IMPLEMENTED = {
     "preprocess": "pipeline.preprocess",
     "segments": "pipeline.segments",
     "hls": "pipeline.hls",
+    "roi_ocr": "pipeline.roi_ocr",
     "faces": "pipeline.faces",
     "asr": "pipeline.asr",
     "similarity": "pipeline.similarity",

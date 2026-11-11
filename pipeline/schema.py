@@ -122,6 +122,30 @@ class SegmentsResult(BaseModel):
 # JSON 대신 hls/index.m3u8 이 결과다 (모듈 docstring 의 #EXTINF 표시 참고).
 
 
+# ---------------------------------------------------------------- roi_ocr (중계 화면 고정 영역 OCR)
+
+class OcrRun(TimeSpan):
+    """한 영역(tag + slot)에서 같은 값이 이어진 구간. 읽지 못한(검증 실패) 구간은 기록하지 않는다."""
+
+    tag: str               # 설정 파일의 tag (player_name, kda, team …)
+    slot: str              # 같은 tag 안의 위치 (blue_top, red …). 없으면 ""
+    kind: str | None = None  # team / player / score / time …
+    text: str              # 최종 값 (사전 대조로 고친 정식 이름이면 그 이름)
+    raw: str               # OCR 이 읽은 그대로 (허용 문자 정리 전)
+    conf: float            # 구간 안 OCR 신뢰도 평균
+    samples: int           # 구간에 들어간 샘플 프레임 수
+
+
+class RoiOcrResult(BaseModel):
+    layout: str            # 설정 파일 경로
+    sample_fps: float
+    base_resolution: tuple[int, int]
+    rois: int              # 설정의 영역 수
+    frames: int            # 읽은 샘플 프레임 수
+    ocr_calls: int         # 실제로 OCR 을 돌린 횟수 (화면이 그대로면 앞 값을 다시 씀)
+    runs: list[OcrRun]
+
+
 # ---------------------------------------------------------------- faces (InsightFace)
 
 class FaceDetection(BaseModel):

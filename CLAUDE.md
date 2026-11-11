@@ -10,6 +10,10 @@ VOD 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는
 ## 구조
 - `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
+- `pipeline/roi_ocr.py`: 중계 화면 고정 영역 OCR (RapidOCR 글자 인식만). 설정은 `configs/<종목>/<레이아웃>.json`
+  (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`), 사전은 `configs/<종목>/lexicon/<이름>.json`.
+  결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다
+  `python -m pipeline /data/game.mp4 --only roi_ocr`
 - `pipeline/__main__.py`: CLI. `python -m pipeline /data/ep01.mp4 --until hls`
 - `app/`: FastAPI (임시)
 
