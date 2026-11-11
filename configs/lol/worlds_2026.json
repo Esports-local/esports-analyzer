@@ -1,0 +1,719 @@
+[
+ {
+  "tag": "game_time",
+  "slot": "",
+  "kind": "time",
+  "ocr_roi": [
+   928,
+   74,
+   994,
+   104
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789:",
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^\\d{1,2}:\\d{2}$"
+  }
+ },
+ {
+  "tag": "team",
+  "slot": "blue",
+  "kind": "team",
+  "ocr_roi": [
+   585,
+   9,
+   660,
+   50
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "teams"
+ },
+ {
+  "tag": "team",
+  "slot": "red",
+  "kind": "team",
+  "ocr_roi": [
+   1265,
+   9,
+   1336,
+   50
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "teams"
+ },
+ {
+  "tag": "standing",
+  "slot": "blue",
+  "kind": "team",
+  "ocr_roi": [
+   585,
+   49,
+   660,
+   71
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^[A-Z]{2,4} ?#\\d$"
+  }
+ },
+ {
+  "tag": "standing",
+  "slot": "red",
+  "kind": "team",
+  "ocr_roi": [
+   1265,
+   49,
+   1336,
+   71
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^[A-Z]{2,4} ?#\\d$"
+  }
+ },
+ {
+  "tag": "team_kills",
+  "slot": "blue",
+  "kind": "score",
+  "ocr_roi": [
+   908,
+   16,
+   944,
+   64
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "regex": "^\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "team_kills",
+  "slot": "red",
+  "kind": "score",
+  "ocr_roi": [
+   974,
+   16,
+   1012,
+   64
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "regex": "^\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "gold",
+  "slot": "blue",
+  "kind": "score",
+  "ocr_roi": [
+   808,
+   16,
+   882,
+   57
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789.K",
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^\\d{1,3}(\\.\\d)?K$"
+  }
+ },
+ {
+  "tag": "gold",
+  "slot": "red",
+  "kind": "score",
+  "ocr_roi": [
+   1044,
+   16,
+   1118,
+   57
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789.K",
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^\\d{1,3}(\\.\\d)?K$"
+  }
+ },
+ {
+  "tag": "gold_diff",
+  "slot": "blue",
+  "kind": "score",
+  "ocr_roi": [
+   812,
+   54,
+   876,
+   74
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789.K+",
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^\\+\\d{1,2}(\\.\\d)?K$"
+  },
+  "note": "앞선 팀 쪽에만 표시. 없으면 빈 값이 정상"
+ },
+ {
+  "tag": "gold_diff",
+  "slot": "red",
+  "kind": "score",
+  "ocr_roi": [
+   1054,
+   54,
+   1112,
+   74
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789.K+",
+  "validation": {
+   "min_confidence": 0.8,
+   "regex": "^\\+\\d{1,2}(\\.\\d)?K$"
+  },
+  "note": "앞선 팀 쪽에만 표시. 없으면 빈 값이 정상"
+ },
+ {
+  "tag": "towers",
+  "slot": "blue",
+  "kind": "score",
+  "ocr_roi": [
+   740,
+   20,
+   766,
+   60
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "min_confidence": 0.5,
+   "regex": "^\\d{1,2}$"
+  }
+ },
+ {
+  "tag": "towers",
+  "slot": "red",
+  "kind": "score",
+  "ocr_roi": [
+   1154,
+   20,
+   1182,
+   60
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "min_confidence": 0.5,
+   "regex": "^\\d{1,2}$"
+  }
+ },
+ {
+  "tag": "obj_count",
+  "slot": "blue",
+  "kind": "score",
+  "ocr_roi": [
+   736,
+   73,
+   762,
+   105
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "min_confidence": 0.5,
+   "regex": "^\\d{1,2}$"
+  }
+ },
+ {
+  "tag": "obj_count",
+  "slot": "red",
+  "kind": "score",
+  "ocr_roi": [
+   1160,
+   73,
+   1182,
+   105
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789",
+  "validation": {
+   "min_confidence": 0.5,
+   "regex": "^\\d{1,2}$"
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "blue_top",
+  "kind": "player",
+  "ocr_roi": [
+   792,
+   825,
+   872,
+   849
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "blue_jungle",
+  "kind": "player",
+  "ocr_roi": [
+   792,
+   877,
+   872,
+   901
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "blue_mid",
+  "kind": "player",
+  "ocr_roi": [
+   792,
+   929,
+   872,
+   953
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "blue_bot",
+  "kind": "player",
+  "ocr_roi": [
+   792,
+   981,
+   872,
+   1005
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "blue_support",
+  "kind": "player",
+  "ocr_roi": [
+   792,
+   1033,
+   872,
+   1057
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "red_top",
+  "kind": "player",
+  "ocr_roi": [
+   1035,
+   825,
+   1127,
+   849
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "red_jungle",
+  "kind": "player",
+  "ocr_roi": [
+   1035,
+   877,
+   1127,
+   901
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "red_mid",
+  "kind": "player",
+  "ocr_roi": [
+   1035,
+   929,
+   1127,
+   953
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "red_bot",
+  "kind": "player",
+  "ocr_roi": [
+   1035,
+   981,
+   1127,
+   1005
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "player_name",
+  "slot": "red_support",
+  "kind": "player",
+  "ocr_roi": [
+   1035,
+   1033,
+   1127,
+   1057
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "lexicon": "players",
+  "validation": {
+   "min_confidence": 0.5
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "blue_top",
+  "kind": "score",
+  "ocr_roi": [
+   868,
+   850,
+   926,
+   872
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "blue_jungle",
+  "kind": "score",
+  "ocr_roi": [
+   868,
+   902,
+   926,
+   924
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "blue_mid",
+  "kind": "score",
+  "ocr_roi": [
+   868,
+   954,
+   926,
+   976
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "blue_bot",
+  "kind": "score",
+  "ocr_roi": [
+   868,
+   1006,
+   926,
+   1028
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "blue_support",
+  "kind": "score",
+  "ocr_roi": [
+   868,
+   1058,
+   926,
+   1080
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "red_top",
+  "kind": "score",
+  "ocr_roi": [
+   994,
+   850,
+   1052,
+   872
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "red_jungle",
+  "kind": "score",
+  "ocr_roi": [
+   994,
+   902,
+   1052,
+   924
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "red_mid",
+  "kind": "score",
+  "ocr_roi": [
+   994,
+   954,
+   1052,
+   976
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "red_bot",
+  "kind": "score",
+  "ocr_roi": [
+   994,
+   1006,
+   1052,
+   1028
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ },
+ {
+  "tag": "kda",
+  "slot": "red_support",
+  "kind": "score",
+  "ocr_roi": [
+   994,
+   1058,
+   1052,
+   1080
+  ],
+  "ocr_engine": "rapidocr",
+  "ocr_langs": [
+   "en"
+  ],
+  "ocr_scale": 3,
+  "allowed_text": "0123456789/",
+  "validation": {
+   "regex": "^\\d{1,2}/\\d{1,2}/\\d{1,2}$",
+   "min_confidence": 0.8
+  }
+ }
+]
