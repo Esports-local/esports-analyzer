@@ -20,9 +20,22 @@ LoL 한국어 중계 → 영어 번역에서 **화면 글자(OCR)로 고유명�
 
 ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
 
+## HTTP (:8001)
+esports-api 가 부른다. 요청·응답 모양은 엔드포인트 폴더의 `schemas.py`가 연동 스펙이다.
+
+| 메서드 | 경로 | 설명 | 폴더 |
+|---|---|---|---|
+| GET | `/health` | 상태, 단계 목록 | `api/views.py` |
+| GET | `/videos` | 원본 영상 목록 (1920x1080·소리 있는 것만 selectable) | `api/videos/` |
+| POST | `/jobs` | 분석 작업 시작 (한 번에 하나, 같은 job_id 를 다른 내용으로 보내면 409) | `api/jobs/` |
+| GET | `/jobs/{id}` | 작업 상태 (현재 단계, 경과 시간, 실패 시 에러) | `api/jobs/` |
+| POST | `/jobs/{id}/cancel` | 작업 중지 (ffmpeg 등 하위 프로세스까지) | `api/jobs/` |
+| POST | `/estimate` | 번역 예상 입력 토큰 (무료) | `api/estimate/` |
+
+`app/main.py`는 FastAPI 앱을 만들고 router 를 묶기만 한다. 작업 기록은 메모리에만 있어서 서버를 다시 띄우면 사라진다 (결과 파일은 남는다).
+
 ## 실행
-보통은 `esports-api`의 `docker compose up`으로 api와 같이 띄우고, ui의 "영상 추가" 화면에서 영상을 골라 분석한다
-(analyzer HTTP: `GET /videos`, `POST /jobs`, `GET /jobs/{id}`, `POST /estimate` — `api/*/schemas.py`).
+보통은 `esports-api`의 `docker compose up`으로 ui(:8000)·api(:8002)와 같이 띄우고, ui의 "영상 추가" 화면에서 영상을 골라 분석한다.
 
 ### 직접 실행 (Docker, CPU)
 ```
