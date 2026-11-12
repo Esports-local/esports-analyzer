@@ -40,7 +40,8 @@
   "validation": {
    "min_confidence": 0.5,
    "regex": "^[A-Z0-9]{2,4}$"
-  }
+  },
+  "static": true
  },
  {
   "tag": "team",
@@ -62,7 +63,8 @@
   "validation": {
    "min_confidence": 0.5,
    "regex": "^[A-Z0-9]{2,4}$"
-  }
+  },
+  "static": true
  },
  {
   "tag": "standing",
@@ -82,7 +84,8 @@
   "validation": {
    "min_confidence": 0.8,
    "regex": "^[A-Z]{2,4} ?#\\d$"
-  }
+  },
+  "static": true
  },
  {
   "tag": "standing",
@@ -102,7 +105,8 @@
   "validation": {
    "min_confidence": 0.8,
    "regex": "^[A-Z]{2,4} ?#\\d$"
-  }
+  },
+  "static": true
  },
  {
   "tag": "team_kills",
@@ -336,7 +340,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -358,7 +363,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -380,7 +386,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -402,7 +409,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -424,7 +432,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -446,7 +455,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -468,7 +478,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -490,7 +501,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -512,7 +524,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "player_name",
@@ -534,7 +547,8 @@
    "min_confidence": 0.5,
    "regex": "^(?=.*[A-Za-z])[A-Za-z0-9]{2,16}$"
   },
-  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "allowed_text": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "static": true
  },
  {
   "tag": "kda",

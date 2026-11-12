@@ -6,7 +6,10 @@
 - ocr_scale: 작은 글자를 키워서 읽는 배율
 - allowed_text: 남길 문자 (그 밖의 문자는 지운다)
 - validation: regex(전체 일치), min_confidence. 통과하지 못하면 그 샘플은 "못 읽음"
-- lexicon: 사전 이름. configs/<종목>/lexicon/<이름>.json 이 있으면 가장 가까운 정식 이름으로 고친다
+- lexicon: 사전 이름. configs/<종목>/lexicon/<이름>.json 이 있으면 가장 가까운 정식 이름으로 고친다.
+  params["match"](pipeline.match 로 받은 match.json)가 있으면 그 경기 선수·팀으로 players·teams 사전을 채운다
+- static: 경기 중 바뀌지 않는 값(선수 이름, 팀 등). 같은 값이 static_lock_sec 동안 이어지면 확정하고
+  그 뒤로는 읽지 않는다. 결과는 확정한 구간 하나 (영상 끝까지)
 
 1. 영상을 sample_fps 간격으로 한 장씩 읽어 기준 해상도로 맞춘다 (전체를 메모리에 올리지 않음).
 2. 영역마다 앞서 OCR 한 때와 화면이 거의 같으면(change_threshold 미만) 그 값을 다시 쓰고, 달라졌으면 OCR 한다.
@@ -37,6 +40,8 @@ DEFAULT_PARAMS = {
     "change_threshold": 3.0,  # 영역 회색조 평균 차이(0~255)가 이 값 이상이면 다시 OCR
     "hold_sec": 1.0,          # 못 읽은 샘플이 이 시간 이하로 끼면 구간을 이어 간다
     "lexicon_min_ratio": 0.6,  # 사전 대조: 이 비율 이상 비슷한 이름이 있으면 그 이름으로 고친다
+    "static_lock_sec": 5.0,   # static 영역: 같은 값이 이 시간 이어지면 확정
+    "match": None,            # match.json 경로 (pipeline.match). 선수·팀 사전으로 쓴다
     "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
 }
 
@@ -56,6 +61,11 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     layout = Path(p["layout"])
     rois = [Roi.from_config(c, i) for i, c in enumerate(json.loads(layout.read_text(encoding="utf-8")))]
     lexicons = load_lexicons(layout.parent / "lexicon", {r.lexicon for r in rois if r.lexicon})
+    if p["match"]:
+        from pipeline.match import match_lexicons
+
+        for name, table in match_lexicons(Path(p["match"])).items():
+            lexicons.setdefault(name, {}).update(table)
     width, height = p["base_resolution"]
     reader = OcrReader()
     step = 1 / p["sample_fps"]
@@ -66,6 +76,8 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         frames += 1
         gray = np.asarray(Image.fromarray(frame).convert("L"), np.int16)
         for roi in rois:
+            if roi.locked:
+                continue
             x1, y1, x2, y2 = roi.box
             crop = gray[y1:y2, x1:x2]
             if roi.last_crop is None or np.abs(crop - roi.last_crop).mean() >= p["change_threshold"]:
@@ -73,6 +85,11 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
                 roi.last_read = roi.read(frame, reader, lexicons, p["lexicon_min_ratio"])
                 calls += 1
             roi.add(t, step, roi.last_read, p["hold_sec"])
+            if roi.static and roi.try_lock(p["static_lock_sec"]):
+                log.info("roi_ocr: %s/%s 확정 %r (%.1f초)", roi.tag, roi.slot, roi.last_read.text, t)
+    for roi in rois:
+        if roi.locked:
+            roi.extend_to(frames * step)
     runs = sorted((r for roi in rois for r in roi.finish()), key=lambda r: (r.start_sec, r.tag, r.slot))
     log.info("roi_ocr: 프레임 %d장, 영역 %d개, OCR %d회 (재사용 %d회), 구간 %d개",
              frames, len(rois), calls, frames * len(rois) - calls, len(runs))
@@ -151,6 +168,8 @@ class Roi:
     regex: str | None = None
     min_conf: float = 0.0
     lexicon: str | None = None
+    static: bool = False
+    locked: bool = False
     last_crop: np.ndarray | None = None
     last_read: Reading | None = None
     runs: list[OcrRun] = field(default_factory=list)
@@ -169,7 +188,8 @@ class Roi:
         v = c.get("validation", {})
         return cls(tag=c["tag"], slot=c.get("slot", ""), kind=c.get("kind"), box=tuple(box),
                    scale=int(c.get("ocr_scale", 1)), allowed=c.get("allowed_text"), regex=v.get("regex"),
-                   min_conf=float(v.get("min_confidence", 0.0)), lexicon=c.get("lexicon"))
+                   min_conf=float(v.get("min_confidence", 0.0)), lexicon=c.get("lexicon"),
+                   static=bool(c.get("static", False)))
 
     def read(self, frame: np.ndarray, reader: OcrReader, lexicons: dict, min_ratio: float) -> Reading:
         """영역을 잘라 OCR 하고 정리·검증·사전 대조까지 한다."""
@@ -198,6 +218,24 @@ class Roi:
             self._cur = {"text": r.text, "raw": r.raw, "start": t, "end": t + step, "confs": [r.conf]}
         elif cur and t + step - cur["end"] > hold_sec + 1e-6:
             self._close()
+
+    def try_lock(self, lock_sec: float) -> bool:
+        """static 영역: 진행 중인 구간이 lock_sec 이상이면 확정한다. 앞서 생긴 다른 구간은 버린다.
+
+        Returns:
+            이번에 확정했으면 True.
+        """
+        cur = self._cur
+        if self.locked or not cur or cur["end"] - cur["start"] < lock_sec - 1e-6:
+            return False
+        self.locked = True
+        self.runs.clear()
+        return True
+
+    def extend_to(self, end_sec: float) -> None:
+        """확정한 구간을 end_sec(영상 끝)까지 늘린다."""
+        if self._cur:
+            self._cur["end"] = max(self._cur["end"], end_sec)
 
     def finish(self) -> list[OcrRun]:
         """남은 구간을 닫고 전체 구간 목록을 돌려준다."""
