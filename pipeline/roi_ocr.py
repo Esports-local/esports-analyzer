@@ -37,6 +37,7 @@ DEFAULT_PARAMS = {
     "change_threshold": 3.0,  # 영역 회색조 평균 차이(0~255)가 이 값 이상이면 다시 OCR
     "hold_sec": 1.0,          # 못 읽은 샘플이 이 시간 이하로 끼면 구간을 이어 간다
     "lexicon_min_ratio": 0.6,  # 사전 대조: 이 비율 이상 비슷한 이름이 있으면 그 이름으로 고친다
+    "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
 }
 
 
@@ -60,7 +61,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     step = 1 / p["sample_fps"]
 
     frames = calls = 0
-    for i, frame in enumerate(iter_frames(video, width, height, p["sample_fps"])):
+    for i, frame in enumerate(iter_frames(video, width, height, p["sample_fps"], p["crop"])):
         t = i * step
         frames += 1
         gray = np.asarray(Image.fromarray(frame).convert("L"), np.int16)
@@ -81,8 +82,10 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     return save_stage(work_dir, "roi_ocr", result, p)
 
 
-def iter_frames(video: Path, width: int, height: int, fps: float):
+def iter_frames(video: Path, width: int, height: int, fps: float, crop: list[int] | None = None):
     """영상을 fps 간격으로 한 장씩 읽는다 (CFR, width x height RGB).
+
+    crop [x, y, w, h] 가 있으면 원본에서 그 부분을 먼저 잘라 낸 뒤 크기를 맞춘다.
 
     Yields:
         (height, width, 3) uint8 배열. 프레임 i 의 시각은 i / fps.
@@ -90,8 +93,12 @@ def iter_frames(video: Path, width: int, height: int, fps: float):
     Raises:
         RuntimeError: ffmpeg 가 실패함.
     """
+    vf = f"fps={fps!r},scale={width}:{height}"
+    if crop:
+        x, y, w, h = crop
+        vf = f"crop={w}:{h}:{x}:{y}," + vf
     proc = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", str(video), "-an", "-vf", f"fps={fps!r},scale={width}:{height}",
+        ["ffmpeg", "-v", "error", "-i", str(video), "-an", "-vf", vf,
          "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
