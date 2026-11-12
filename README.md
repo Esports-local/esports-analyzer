@@ -22,7 +22,7 @@ ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
 
 ## 실행
 보통은 `esports-api`의 `docker compose up`으로 api와 같이 띄우고, ui의 "영상 추가" 화면에서 영상을 골라 분석한다
-(analyzer HTTP: `GET /videos`, `POST /jobs`, `GET /jobs/{id}`, `POST /estimate` — `app/schemas.py`).
+(analyzer HTTP: `GET /videos`, `POST /jobs`, `GET /jobs/{id}`, `POST /estimate` — `api/*/schemas.py`).
 
 ### 직접 실행 (Docker, CPU)
 ```
