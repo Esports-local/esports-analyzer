@@ -6,8 +6,7 @@
 - ocr_scale: 작은 글자를 키워서 읽는 배율
 - allowed_text: 남길 문자 (그 밖의 문자는 지운다)
 - validation: regex(전체 일치), min_confidence. 통과하지 못하면 그 샘플은 "못 읽음"
-- lexicon: 사전 이름. configs/<종목>/lexicon/<이름>.json 이 있으면 가장 가까운 정식 이름으로 고친다.
-  params["match"](pipeline.match 로 받은 match.json)가 있으면 그 경기 선수·팀으로 players·teams 사전을 채운다
+- lexicon: 사전 이름. configs/<종목>/lexicon/<이름>.json 이 있으면 가장 가까운 정식 이름으로 고친다 (없으면 그대로)
 - static: 경기 중 바뀌지 않는 값(선수 이름, 팀 등). 같은 값이 static_lock_sec 동안 이어지면 확정하고
   그 뒤로는 읽지 않는다. 결과는 확정한 구간 하나 (영상 끝까지)
 
@@ -41,7 +40,6 @@ DEFAULT_PARAMS = {
     "hold_sec": 1.0,          # 못 읽은 샘플이 이 시간 이하로 끼면 구간을 이어 간다
     "lexicon_min_ratio": 0.6,  # 사전 대조: 이 비율 이상 비슷한 이름이 있으면 그 이름으로 고친다
     "static_lock_sec": 5.0,   # static 영역: 같은 값이 이 시간 이어지면 확정
-    "match": None,            # match.json 경로 (pipeline.match). 선수·팀 사전으로 쓴다
     "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
 }
 
@@ -61,11 +59,6 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     layout = Path(p["layout"])
     rois = [Roi.from_config(c, i) for i, c in enumerate(json.loads(layout.read_text(encoding="utf-8")))]
     lexicons = load_lexicons(layout.parent / "lexicon", {r.lexicon for r in rois if r.lexicon})
-    if p["match"]:
-        from pipeline.match import match_lexicons
-
-        for name, table in match_lexicons(Path(p["match"])).items():
-            lexicons.setdefault(name, {}).update(table)
     width, height = p["base_resolution"]
     reader = OcrReader()
     step = 1 / p["sample_fps"]
