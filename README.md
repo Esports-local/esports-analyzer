@@ -5,7 +5,7 @@ LoL 한국어 중계 → 영어 번역에서 **화면 글자(OCR)로 고유명�
 
 - 계획·실험 조건·지금까지 결과: [`docs/PLAN.md`](docs/PLAN.md)
 - 남은 작업: [`CHECKLIST.md`](CHECKLIST.md)
-- 함께 쓰는 레포: [esports-api](https://github.com/djkim0704/esports-api) (결과 저장·조회) · [esports-ui](https://github.com/djkim0704/esports-ui) (화면)
+- 함께 쓰는 레포: [esports-api](https://github.com/Esports-local/esports-api) (결과 저장·조회) · [esports-ui](https://github.com/Esports-local/esports-ui) (화면)
 
 ## 단계
 | 단계 | 내용 | 결과 |
