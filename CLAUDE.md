@@ -21,9 +21,10 @@
 - `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set translate.dry_run=true`)
 - `app/main.py`: FastAPI 앱. 엔드포인트 router 를 묶기만 한다 (`uvicorn app.main:app`)
 - `api/`: HTTP 엔드포인트. 엔드포인트마다 폴더 하나 (`views.py` router + `schemas.py` 요청·응답 모양 = 연동 스펙). 큐는 아직 없음
-  - 공통: `views.py`(`GET /health`), `paths.py`(`VIDEOS_ROOT`·`OUTPUTS_ROOT`, 영상 경로 확인)
+  - 공통: `views.py`(`GET /health`), `paths.py`(`VIDEOS_ROOT`·`OUTPUTS_ROOT` 절대 경로, 영상 경로 확인. 결과 폴더 이름은 요청한 파일 이름 기준이라 바로가기여도 api 의 work_name 과 같다)
   - `videos/`: `GET /videos` (VIDEOS_ROOT 영상, 1920x1080·소리 있는 것만 selectable)
   - `jobs/`: `POST /jobs`(파이프라인을 프로세스로 실행, 한 번에 하나, 로그 `work/job.log`), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`
+    - 같은 job_id 를 다른 내용으로 보내면 409. 취소는 프로세스 그룹째(ffmpeg 등 하위 프로세스까지). 끝난 작업 기록은 최근 100개만 남김
   - `estimate/`: `POST /estimate` (번역 입력 토큰)
 
 ```
