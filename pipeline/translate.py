@@ -79,47 +79,92 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path | None:
         RuntimeError: GEMINI_API_KEY 가 없거나 API 오류.
     """
     p = {**DEFAULT_PARAMS, **(params or {})}
+    plan = _plan(video, work_dir, p)
+    client = Gemini(p["model"])
+    if p["dry_run"]:
+        counted = _count(client, plan)
+        log.info("translate (dry_run): 대사 %d줄, 입력 토큰 %s, 합계 %d",
+                 len(plan["targets"]), counted, sum(counted.values()))
+        return None
+
+    out, usage = plan["out"], TranslateUsage()
+    for line_id, cond, body in _requests(plan):
+        text, used = client.generate(body)
+        out[str(line_id)][cond] = text
+        usage.requests += 1
+        usage.input_tokens += used.get("promptTokenCount", 0)
+        usage.output_tokens += used.get("candidatesTokenCount", 0) + used.get("thoughtsTokenCount", 0)
+        log.info("translate: %s %s %s", line_id, cond, text[:80])
+    log.info("translate: 대사 %d줄, 요청 %d번, 입력 %d / 출력 %d 토큰",
+             len(plan["targets"]), usage.requests, usage.input_tokens, usage.output_tokens)
+    result = TranslateResult(model=p["model"], conditions=plan["conds"], usage=usage,
+                             lines={k: v for k, v in out.items() if v})
+    return save_stage(work_dir, "translate", result, p)
+
+
+def estimate(video: Path, work_dir: Path, params: dict | None = None, sample: int = 20) -> dict:
+    """번역하지 않고 입력 토큰만 센다 (Gemini countTokens, 무료). 이미 번역한 (대사, 조건)은 빠진다.
+
+    대사가 sample 줄보다 많으면 고르게 sample 줄만 세고 비율로 늘린다 (요청이 수백 번이면 몇 분 걸려서).
+
+    Returns:
+        {"model", "lines": 대상 대사 수, "requests": 보낼 요청 수, "input_tokens": {조건: 토큰},
+         "sampled_lines": 실제로 센 대사 수}
+    """
+    p = {**DEFAULT_PARAMS, **(params or {})}
+    plan = _plan(video, work_dir, p)
+    todo = list(_todo(plan))
+    requests = {c: sum(1 for _, t in todo if c in t) for c in plan["conds"]}
+    picked = todo if len(todo) <= sample else [todo[round(i * (len(todo) - 1) / (sample - 1))] for i in range(sample)]
+    counted = _count(Gemini(p["model"]), {**plan, "targets": [line for line, _ in picked]})
+    seen = {c: sum(1 for _, t in picked if c in t) for c in plan["conds"]}
+    tokens = {c: round(counted[c] * requests[c] / seen[c]) if seen[c] else 0 for c in plan["conds"]}
+    return {"model": p["model"], "lines": len(plan["targets"]), "requests": sum(requests.values()),
+            "input_tokens": tokens, "sampled_lines": len(picked)}
+
+
+def _plan(video: Path, work_dir: Path, p: dict) -> dict:
+    """번역할 대사·조건과 필요한 입력을 모은다.
+
+    Raises:
+        ValueError: 알 수 없는 조건.
+        FileNotFoundError: 필요한 앞 단계 결과가 없음.
+    """
     conds = [c for c in CONDITIONS if c in p["conditions"]]
     if not conds or set(p["conditions"]) - set(CONDITIONS):
         raise ValueError(f"conditions 는 {CONDITIONS} 중에서: {p['conditions']}")
     lines = _read_result(work_dir, "asr")["lines"]
     runs = _read_result(work_dir, "roi_ocr")["runs"] if "B" in conds else []
-    statics = static_values(runs)
     targets = select_lines(lines, p["line_ids"], p["max_lines"])
-
     prev = _previous(work_dir, p["model"]) if p["reuse"] else {}
-    client = Gemini(p["model"])
-    out: dict[str, dict[str, str]] = {str(line["id"]): dict(prev.get(str(line["id"]), {})) for line in targets}
-    usage = TranslateUsage()
-    counted = {c: 0 for c in conds}
-    by_id = {line["id"]: i for i, line in enumerate(lines)}
+    return {"p": p, "video": video, "conds": conds, "lines": lines, "runs": runs, "statics": static_values(runs),
+            "targets": targets, "index": {line["id"]: i for i, line in enumerate(lines)},
+            "out": {str(t["id"]): dict(prev.get(str(t["id"]), {})) for t in targets}}
 
-    for line in targets:
-        done = out[str(line["id"])]
-        todo = [c for c in conds if c not in done]
-        if not todo:
-            continue
-        frames = extract_frames(video, line, p["frames"], p["frame_size"]) if "C" in todo else []
+
+def _todo(plan: dict):
+    """아직 번역 안 한 (대사, [조건…])."""
+    for line in plan["targets"]:
+        todo = [c for c in plan["conds"] if c not in plan["out"][str(line["id"])]]
+        if todo:
+            yield line, todo
+
+
+def _requests(plan: dict):
+    """(대사 id, 조건, 요청 본문). 조건 C 프레임은 대사마다 한 번만 뽑는다."""
+    p = plan["p"]
+    for line, todo in _todo(plan):
+        frames = extract_frames(plan["video"], line, p["frames"], p["frame_size"]) if "C" in todo else []
         for cond in todo:
-            body = build_request(lines, by_id[line["id"]], cond, p, runs, statics, frames)
-            if p["dry_run"]:
-                counted[cond] += client.count_tokens(body)
-                continue
-            text, used = client.generate(body)
-            done[cond] = text
-            usage.requests += 1
-            usage.input_tokens += used.get("promptTokenCount", 0)
-            usage.output_tokens += used.get("candidatesTokenCount", 0) + used.get("thoughtsTokenCount", 0)
-            log.info("translate: %s %s %s", line["id"], cond, text[:80])
+            yield line["id"], cond, build_request(plan["lines"], plan["index"][line["id"]], cond, p,
+                                                  plan["runs"], plan["statics"], frames)
 
-    if p["dry_run"]:
-        log.info("translate (dry_run): 대사 %d줄, 입력 토큰 %s, 합계 %d", len(targets), counted, sum(counted.values()))
-        return None
-    log.info("translate: 대사 %d줄, 요청 %d번, 입력 %d / 출력 %d 토큰",
-             len(targets), usage.requests, usage.input_tokens, usage.output_tokens)
-    result = TranslateResult(model=p["model"], conditions=conds, lines={k: v for k, v in out.items() if v},
-                             usage=usage)
-    return save_stage(work_dir, "translate", result, p)
+
+def _count(client, plan: dict) -> dict[str, int]:
+    counted = {c: 0 for c in plan["conds"]}
+    for _, cond, body in _requests(plan):
+        counted[cond] += client.count_tokens(body)
+    return counted
 
 
 def select_lines(lines: list[dict], line_ids, max_lines) -> list[dict]:

@@ -3,7 +3,7 @@
 > 프로젝트 전체 구성, 결정 사항, 저장소 구조는 **`docs/PLAN.md`가 기준**이다 (api·ui 레포도 이 파일을 본다). 작업 전에 반드시 읽는다.
 > 주제: LoL 한국어 중계 → 영어 번역에서 화면 글자(OCR)로 고유명사 오역을 줄이는 실험.
 > 드라마 스토리 예측 버전(faces·similarity·scenes·vlm·episode 단계)은 `drama` 브랜치에 있다.
-> api ↔ analyzer 연동 스펙은 아직 미정이다. 현재 `app/`의 엔드포인트와 필드 이름은 임시이며, 확정 전에 바꾸지 말고 파이프라인 구현에 집중한다.
+> api ↔ analyzer 연동 스펙은 `app/schemas.py`와 docs/PLAN.md 6장이 기준이다 (`/videos`, `/jobs`, `/estimate`). 바꾸면 api 의 `matches/analyzer.py`도 같이 고친다.
 
 ## 이 레포의 역할
 중계 영상 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는 얇은 층이고, 실제 처리는 `pipeline/`에서 한다.
@@ -19,7 +19,7 @@
 - `pipeline/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
 - `pipeline/translate.py`: 조건 A(대사)·B(+화면 OCR)·C(+프레임) 영어 번역, Gemini REST (`GEMINI_API_KEY`). 기본 A·B, `dry_run`(입력 토큰만 셈, 무료), 기존 번역 재사용. 화면 정보는 `pipeline/screen.py`
 - `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set translate.dry_run=true`)
-- `app/`: FastAPI (임시)
+- `app/`: FastAPI. `GET /videos`(VIDEOS_ROOT 영상, 1920x1080·소리 있는 것만 selectable), `POST /jobs`(파이프라인을 프로세스로 실행, 한 번에 하나, 로그 `work/job.log`), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`, `POST /estimate`(번역 입력 토큰). 큐는 아직 없음
 
 ```
 docker build -t esports-analyzer .
