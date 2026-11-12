@@ -1,6 +1,6 @@
 # esports-analyzer — 분석 파이프라인 (FastAPI)
 
-> 프로젝트 전체 구성, 결정 사항, 저장소 구조는 **`../PLAN.md`가 기준**이다. 작업 전에 반드시 읽는다.
+> 프로젝트 전체 구성, 결정 사항, 저장소 구조는 **`docs/PLAN.md`가 기준**이다 (api·ui 레포도 이 파일을 본다). 작업 전에 반드시 읽는다.
 > 주제: LoL 한국어 중계 → 영어 번역에서 화면 글자(OCR)로 고유명사 오역을 줄이는 실험.
 > 드라마 스토리 예측 버전(faces·similarity·scenes·vlm·episode 단계)은 `drama` 브랜치에 있다.
 > api ↔ analyzer 연동 스펙은 아직 미정이다. 현재 `app/`의 엔드포인트와 필드 이름은 임시이며, 확정 전에 바꾸지 말고 파이프라인 구현에 집중한다.
@@ -14,7 +14,7 @@
   - 단계: preprocess → segments → hls → roi_ocr → asr → translate(예정) → evaluate(예정)
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
 - `pipeline/roi_ocr.py`: 중계 화면 고정 영역 OCR (RapidOCR 글자 인식만). 설정은 `configs/<종목>/<레이아웃>.json`
-  (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택).
+  (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`, `static`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택, 지금은 팀 로고 글꼴 보정용 `teams.json`만).
   결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다
 - `pipeline/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
 - `pipeline/__main__.py`: CLI
@@ -29,9 +29,9 @@ docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pi
 
 ## 모델
 TransNetV2(화면 전환 검출, CPU) · RapidOCR(글자 인식, CPU) · faster-whisper(ASR, Silero VAD 내장) · pyannote Community-1(화자 구분, 선택, HF_TOKEN)
-· 번역 모델은 미정 (PLAN.md 2장 조건 A/B/C는 같은 모델로).
+· 번역 모델은 미정 (docs/PLAN.md 2장 조건 A/B/C는 같은 모델로, Gemini 예정).
 
-## 규칙 요약 (상세는 PLAN.md)
+## 규칙 요약 (상세는 docs/PLAN.md)
 - 시간은 초 단위 float, 단계 결과 JSON에는 `schema_version`
 - `work/`: 단계별 중간 결과 (외부 공개 안 함) · `hls/`: 재생용
 - 화면 좌표는 1920x1080 기준 픽셀. 다른 해상도 영상은 그 크기로 맞춰 읽는다
