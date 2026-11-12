@@ -29,7 +29,7 @@ STAGES = [
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
     "roi_ocr",     # 중계 화면 고정 영역(선수·팀·KDA·골드·시간) OCR -> 값이 이어진 구간
     "asr",         # faster-whisper (내장 Silero VAD, word timestamps) -> 해설 대사 줄
-    "translate",   # 대사 번역 (조건 A 음성만 / B +OCR / C +영상) — 예정
+    "translate",   # 대사 번역 (조건 A 대사만 / B +화면 OCR / C +영상 프레임), Gemini
     "evaluate",    # 고유명사 오역 판정·조건별 집계 — 예정
 ]
 
@@ -40,6 +40,7 @@ IMPLEMENTED = {
     "hls": "pipeline.hls",
     "roi_ocr": "pipeline.roi_ocr",
     "asr": "pipeline.asr",
+    "translate": "pipeline.translate",
 }
 
 
@@ -122,6 +123,9 @@ def run_pipeline(
         t0 = time.monotonic()
         results[name] = run_stage(name, video, work_dir, (params or {}).get(name))
         elapsed = time.monotonic() - t0
+        if results[name] is None:  # 결과를 저장하지 않는 실행 (예: translate dry_run)
+            log.info("[%s] 끝 %.1f초 (결과 저장 안 함)", name, elapsed)
+            continue
         peak_mb = _peak_rss_mb()
         log.info("[%s] 완료 %.1f초, 최대 메모리 %.0fMB → %s", name, elapsed, peak_mb, results[name])
         _append_run_log(work_dir, name, elapsed, peak_mb)

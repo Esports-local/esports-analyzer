@@ -149,3 +149,23 @@ class Line(TimeSpan):
 
 class AsrResult(BaseModel):
     lines: list[Line]
+
+
+# ---------------------------------------------------------------- translate
+
+class TranslateUsage(BaseModel):
+    requests: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0  # 생각(thinking) 토큰 포함
+
+
+class TranslateResult(BaseModel):
+    """조건별 번역. lines 의 키는 대사 id(문자열), 값은 {조건: 번역문}.
+
+    조건: A 대사만 / B + 화면 OCR / C + 영상 프레임 (docs/PLAN.md 2장)
+    """
+
+    model: str
+    conditions: list[str]
+    lines: dict[str, dict[str, str]]
+    usage: TranslateUsage

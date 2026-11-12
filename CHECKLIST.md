@@ -24,7 +24,8 @@
 - [ ] 화자 구분: pyannote (필요하면)
 
 ## 번역·평가
-- [ ] translate 단계: 조건 A/B → C, 전체 대사 (Gemini, `GEMINI_API_KEY`)
+- [x] translate 단계 구현 (A/B 기본, C 선택, dry_run, 재사용)
+- [ ] translate 전체 대사 실행 (A·B, 이어서 C)
 - [ ] 케이스셋: 대사 ↔ 화면 OCR 시간 맞추기, 이름 오류 후보 자동 추출
 - [ ] evaluate: 고유명사 정확도, 조건별·종류별·화면 상태별 집계
 

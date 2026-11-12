@@ -11,13 +11,14 @@
 
 ## 구조
 - `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
-  - 단계: preprocess → segments → hls → roi_ocr → asr → translate(예정) → evaluate(예정)
+  - 단계: preprocess → segments → hls → roi_ocr → asr → translate → evaluate(예정)
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
 - `pipeline/roi_ocr.py`: 중계 화면 고정 영역 OCR (RapidOCR 글자 인식만). 설정은 `configs/<종목>/<레이아웃>.json`
   (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`, `static`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택, 지금은 팀 로고 글꼴 보정용 `teams.json`만).
   결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다
 - `pipeline/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
-- `pipeline/__main__.py`: CLI
+- `pipeline/translate.py`: 조건 A(대사)·B(+화면 OCR)·C(+프레임) 영어 번역, Gemini REST (`GEMINI_API_KEY`). 기본 A·B, `dry_run`(입력 토큰만 셈, 무료), 기존 번역 재사용. 화면 정보는 `pipeline/screen.py`
+- `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set translate.dry_run=true`)
 - `app/`: FastAPI (임시)
 
 ```
@@ -29,7 +30,7 @@ docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pi
 
 ## 모델
 TransNetV2(화면 전환 검출, CPU) · RapidOCR(글자 인식, CPU) · faster-whisper(ASR, Silero VAD 내장) · pyannote Community-1(화자 구분, 선택, HF_TOKEN)
-· 번역 모델은 미정 (docs/PLAN.md 2장 조건 A/B/C는 같은 모델로, Gemini 예정).
+· 번역 Gemini (`gemini-3.8-flash`, 조건 A/B/C 같은 모델·프롬프트, docs/PLAN.md 2장).
 
 ## 규칙 요약 (상세는 docs/PLAN.md)
 - 시간은 초 단위 float, 단계 결과 JSON에는 `schema_version`

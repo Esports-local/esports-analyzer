@@ -15,7 +15,8 @@ LoL 한국어 중계 → 영어 번역에서 **화면 글자(OCR)로 고유명�
 | hls | 재생용 ts | `hls/` |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만), 같은 값이 이어진 구간 | `work/roi_ocr.json` |
 | asr | faster-whisper (Silero VAD), 대사 | `work/asr.json` |
-| translate · evaluate | 조건별 번역, 고유명사 평가 | 예정 |
+| translate | 조건별 영어 번역 (A 대사 / B + 화면 OCR / C + 프레임), Gemini | `work/translate.json` |
+| evaluate | 고유명사 평가 | 예정 |
 
 ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
 
@@ -25,7 +26,14 @@ docker build -t esports-analyzer .
 docker run --rm -v "$PWD":/app -v /path/to/videos:/data esports-analyzer \
   python -m pipeline /data/game.mp4 --only preprocess,roi_ocr,asr
 ```
-결과는 `outputs/<영상 파일명>/work/`에 생긴다. 번역 테스트에는 `.env`(`cp .env.example .env`)의 `GEMINI_API_KEY`가 필요하다.
+결과는 `outputs/<영상 파일명>/work/`에 생긴다.
+
+번역은 `.env`(`cp .env.example .env`)의 `GEMINI_API_KEY`가 필요하다. 먼저 `dry_run`으로 입력 토큰을 세 볼 수 있다 (무료):
+```
+docker run --rm --env-file .env -v "$PWD":/app -v /path/to/videos:/data esports-analyzer \
+  python -m pipeline /data/game.mp4 --only translate --set translate.dry_run=true
+# 조건 C 포함: --set 'translate.conditions=["A","B","C"]'   일부만: --set translate.max_lines=20
+```
 
 화면 녹화본이 1920x1080이 아니면 중계 화면 부분만 잘라 1080p로 변환해서 쓴다:
 ```
