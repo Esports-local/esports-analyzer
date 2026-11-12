@@ -11,6 +11,10 @@
 - 이미 번역한 (대사, 조건)은 기존 work/translate.json 에서 다시 쓴다 (같은 모델일 때)
 - line_ids / max_lines 로 번역할 대사를 줄일 수 있다
 
+사람 검수 (esports-api 가 보냄)
+- text_overrides {대사 id: 고친 문장}: ASR 원문 대신 이 문장으로 번역한다 (앞뒤 문맥 줄에도 적용)
+- 번역할 때 쓴 문장을 결과 sources 에 남기고, 문장이 바뀐 대사는 기존 번역을 다시 쓰지 않는다
+
 API 키: 환경변수 GEMINI_API_KEY (docker run --env-file .env)
 """
 
@@ -48,6 +52,7 @@ DEFAULT_PARAMS = {
     "max_lines": None,           # 앞에서부터 이만큼만
     "reuse": True,               # 기존 translate.json 에 있는 번역은 다시 요청하지 않음
     "dry_run": False,            # 입력 토큰만 세고 끝
+    "text_overrides": {},        # {대사 id(문자열): 사람이 고친 문장} — ASR 원문 대신 번역
 }
 
 SYSTEM_PROMPT = (
@@ -97,8 +102,9 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path | None:
         log.info("translate: %s %s %s", line_id, cond, text[:80])
     log.info("translate: 대사 %d줄, 요청 %d번, 입력 %d / 출력 %d 토큰",
              len(plan["targets"]), usage.requests, usage.input_tokens, usage.output_tokens)
-    result = TranslateResult(model=p["model"], conditions=plan["conds"], usage=usage,
-                             lines={k: v for k, v in out.items() if v})
+    lines = {k: v for k, v in out.items() if v}
+    result = TranslateResult(model=p["model"], conditions=plan["conds"], usage=usage, lines=lines,
+                             sources={k: plan["texts"][k] for k in lines})
     return save_stage(work_dir, "translate", result, p)
 
 
@@ -133,13 +139,27 @@ def _plan(video: Path, work_dir: Path, p: dict) -> dict:
     conds = [c for c in CONDITIONS if c in p["conditions"]]
     if not conds or set(p["conditions"]) - set(CONDITIONS):
         raise ValueError(f"conditions 는 {CONDITIONS} 중에서: {p['conditions']}")
-    lines = _read_result(work_dir, "asr")["lines"]
+    asr_lines = _read_result(work_dir, "asr")["lines"]
+    lines = apply_overrides(asr_lines, p["text_overrides"] or {})
     runs = _read_result(work_dir, "roi_ocr")["runs"] if "B" in conds else []
     targets = select_lines(lines, p["line_ids"], p["max_lines"])
-    prev = _previous(work_dir, p["model"]) if p["reuse"] else {}
+    prev, prev_sources = _previous(work_dir, p["model"]) if p["reuse"] else ({}, {})
+    asr_texts = {str(x["id"]): x["text"] for x in asr_lines}
+    texts = {str(x["id"]): x["text"] for x in lines}
+    # 기존 번역은 그때 번역한 문장이 지금 문장과 같을 때만 다시 쓴다 (sources 가 없던 옛 결과는 ASR 원문으로 본다)
+    out = {}
+    for t in targets:
+        k = str(t["id"])
+        same = prev_sources.get(k, asr_texts.get(k)) == texts[k]
+        out[k] = dict(prev.get(k, {})) if same else {}
     return {"p": p, "video": video, "conds": conds, "lines": lines, "runs": runs, "statics": static_values(runs),
-            "targets": targets, "index": {line["id"]: i for i, line in enumerate(lines)},
-            "out": {str(t["id"]): dict(prev.get(str(t["id"]), {})) for t in targets}}
+            "targets": targets, "index": {line["id"]: i for i, line in enumerate(lines)}, "out": out, "texts": texts}
+
+
+def apply_overrides(lines: list[dict], overrides: dict) -> list[dict]:
+    """대사 문장을 사람이 고친 문장으로 바꾼 새 목록. overrides 키는 대사 id (문자열 또는 정수)."""
+    fixed = {str(k): v for k, v in overrides.items() if isinstance(v, str) and v.strip()}
+    return [{**x, "text": fixed[str(x["id"])].strip()} if str(x["id"]) in fixed else x for x in lines]
 
 
 def _todo(plan: dict):
@@ -251,12 +271,13 @@ def _read_result(work_dir: Path, stage: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))["result"]
 
 
-def _previous(work_dir: Path, model: str) -> dict[str, dict[str, str]]:
-    """같은 모델로 만든 기존 번역 {대사 id: {조건: 번역}}. 없거나 모델이 다르면 빈 dict."""
+def _previous(work_dir: Path, model: str) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """같은 모델로 만든 기존 번역 ({대사 id: {조건: 번역}}, {대사 id: 번역한 문장}). 없거나 모델이 다르면 빈 dict."""
     path = stage_path(work_dir, "translate")
     if not path.exists():
-        return {}
+        return {}, {}
     data = json.loads(path.read_text(encoding="utf-8"))
-    if (data.get("result") or {}).get("model", data.get("params", {}).get("model")) != model:
-        return {}
-    return (data.get("result") or {}).get("lines", {})
+    result = data.get("result") or {}
+    if result.get("model", data.get("params", {}).get("model")) != model:
+        return {}, {}
+    return result.get("lines", {}), result.get("sources", {})

@@ -18,7 +18,8 @@ def estimate(body: EstimateRequest):
     except FileNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     try:
-        return translate.estimate(video, OUTPUTS / video.stem, {"conditions": body.conditions})
+        return translate.estimate(video, OUTPUTS / video.stem, {"conditions": body.conditions,
+                                                                "text_overrides": body.text_overrides})
     except FileNotFoundError as e:  # 앞 단계 결과가 없음
         raise HTTPException(409, str(e)) from e
     except (ValueError, RuntimeError) as e:

@@ -91,7 +91,7 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 | esports-ui | 세트 영상 목록, 대사·번역 비교, 화면 OCR 구간, 원본 JSON 화면 (Django 템플릿) |
 
 - ui → api 스펙: [스펙 시트 spec_sheet_lol](https://docs.google.com/spreadsheets/d/1ktzJNw1eFwdPfRUiwNkzmhVgz8ZyxqiYMk721m9E6C8)
-  - 1 `GET /games` · 2 `GET /games/{id}` · 3 `/screen` · 4 `/lines` · 5 `/analysis` · 8 `POST /games`(영상 등록 + 분석) · 9 `/analyze` · 10 `/cancel` · 11 `/estimate` · 12 `GET /sources` (구현) · 6·7 `/cases` (평가 단계 후)
+  - 1 `GET /games` · 2 `GET /games/{id}` · 3 `/screen` · 4 `/lines` · 5 `/analysis` · 8 `POST /games`(영상 등록 + 분석) · 9 `/analyze` · 10 `/cancel` · 11 `/estimate` · 12 `GET /sources` · 13 `POST /lines/{line_id}/review`(대사 검수: 고친 문장·O/X, 고친 문장으로 번역) (구현) · 6·7 `/cases` (평가 단계 후)
 - api → analyzer (`api/*/schemas.py`): `GET /videos`(원본 영상, 1920x1080·소리 있는 것만 selectable) · `POST /jobs`(파이프라인 실행, 한 번에 하나) · `GET /jobs/{id}` · `POST /jobs/{id}/cancel` · `POST /estimate`(번역 입력 토큰, 20줄 표본)
   - api 는 세트 영상을 조회할 때 analyzer 작업 상태를 묻고, 끝났으면 결과 폴더(`outputs/<이름>/work/`)를 읽어 저장한다
   - 큐는 아직 없다. analyzer 컨테이너를 다시 띄우면 진행 중이던 작업 기록이 사라진다

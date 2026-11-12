@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class EstimateRequest(BaseModel):
     video: str
     conditions: list[str] = ["A", "B"]
+    text_overrides: dict[str, str] = {}  # {대사 id: 사람이 고친 문장} (translate 와 같음)
 
 
 class EstimateResult(BaseModel):

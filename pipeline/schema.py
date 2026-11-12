@@ -169,3 +169,4 @@ class TranslateResult(BaseModel):
     conditions: list[str]
     lines: dict[str, dict[str, str]]
     usage: TranslateUsage
+    sources: dict[str, str] = {}  # {대사 id: 번역할 때 쓴 한국어 문장} (사람이 고쳤으면 고친 문장)

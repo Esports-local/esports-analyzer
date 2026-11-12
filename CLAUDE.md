@@ -17,7 +17,7 @@
   (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`, `static`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택, 지금은 팀 로고 글꼴 보정용 `teams.json`만).
   결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다
 - `pipeline/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
-- `pipeline/translate.py`: 조건 A(대사)·B(+화면 OCR)·C(+프레임) 영어 번역, Gemini REST (`GEMINI_API_KEY`). 기본 A·B, `dry_run`(입력 토큰만 셈, 무료), 기존 번역 재사용. 화면 정보는 `pipeline/screen.py`
+- `pipeline/translate.py`: 조건 A(대사)·B(+화면 OCR)·C(+프레임) 영어 번역, Gemini REST (`GEMINI_API_KEY`). 기본 A·B, `dry_run`(입력 토큰만 셈, 무료), 기존 번역 재사용. `text_overrides`(api 가 보내는 사람이 고친 대사)는 ASR 원문 대신 번역하고, 결과 `sources`에 번역한 문장을 남겨 문장이 바뀐 대사만 다시 번역. 화면 정보는 `pipeline/screen.py`
 - `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set translate.dry_run=true`)
 - `app/main.py`: FastAPI 앱. 엔드포인트 router 를 묶기만 한다 (`uvicorn app.main:app`)
 - `api/`: HTTP 엔드포인트. 엔드포인트마다 폴더 하나 (`views.py` router + `schemas.py` 요청·응답 모양 = 연동 스펙). 큐는 아직 없음
