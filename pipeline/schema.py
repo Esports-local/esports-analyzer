@@ -138,11 +138,6 @@ class RoiOcrResult(BaseModel):
 
 # ---------------------------------------------------------------- asr
 
-class Word(TimeSpan):
-    text: str
-    prob: float | None = None
-
-
 class Line(TimeSpan):
     """한 사람이 한 번 말한 대사. segment 경계를 넘어도 자르지 않는다."""
 
@@ -150,7 +145,6 @@ class Line(TimeSpan):
     speaker: str | None = None  # S1, S2 … (화자 분리 전이면 None)
     language: str | None = None  # 대사별 감지 언어 (ko, ja, en …)
     text: str
-    words: list[Word] = []
 
 
 class AsrResult(BaseModel):

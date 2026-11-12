@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from pipeline.io import load_stage, save_stage
-from pipeline.schema import AsrResult, Line, PreprocessResult, Word
+from pipeline.schema import AsrResult, Line, PreprocessResult
 
 DEFAULT_PARAMS = {
     "model": "small",  # faster-whisper 모델 크기 (small / medium / large-v3)
@@ -274,9 +274,7 @@ def lines_from_words(segments: list[dict], turns: list[tuple[float, float, str]]
         if cur:
             lines.append(Line(id=len(lines) + 1, start_sec=round(cur[0]["start"], 3), end_sec=round(cur[-1]["end"], 3),
                               speaker=cur_spk, text=_join(w["raw"] for w in cur),
-                              language=Counter(w["language"] for w in cur).most_common(1)[0][0],
-                              words=[Word(start_sec=round(w["start"], 3), end_sec=round(max(w["end"], w["start"]), 3),
-                                          text=w["text"], prob=round(w["prob"], 3)) for w in cur]))
+                              language=Counter(w["language"] for w in cur).most_common(1)[0][0]))
 
     for w in words:
         spk = _speaker_for(w["start"], w["end"], turns)
@@ -304,9 +302,7 @@ def lines_from_segments(segments: list[dict]) -> list[Line]:
         if not s["text"]:
             continue
         lines.append(Line(id=len(lines) + 1, start_sec=round(s["start"], 3), end_sec=round(max(s["end"], s["start"]), 3),
-                          speaker=None, text=s["text"], language=s["language"],
-                          words=[Word(start_sec=round(w["start"], 3), end_sec=round(max(w["end"], w["start"]), 3),
-                                      text=w["text"], prob=round(w["prob"], 3)) for w in s["words"]]))
+                          speaker=None, text=s["text"], language=s["language"]))
     return lines
 
 
