@@ -15,7 +15,7 @@ LoL 한국어 중계 → 영어 번역에서 **화면 글자(OCR)로 고유명�
 | hls | 재생용 ts | `hls/` |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만), 같은 값이 이어진 구간 | `work/roi_ocr.json` |
 | asr | faster-whisper (Silero VAD), 대사 | `work/asr.json` |
-| translate | 조건별 영어 번역 (A 대사 / B + 화면 OCR / C + 프레임), Gemini | `work/translate.json` |
+| translate | 조건별 영어 번역 (A 대사 / B + 화면 OCR / C + 프레임), Gemini. 사람이 고친 대사(`text_overrides`)가 있으면 그 문장으로 번역하고, 문장이 바뀐 대사만 다시 번역 | `work/translate.json` |
 | evaluate | 고유명사 평가 | 예정 |
 
 ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
@@ -30,7 +30,7 @@ esports-api 가 부른다. 요청·응답 모양은 엔드포인트 폴더의 `s
 | POST | `/jobs` | 분석 작업 시작 (한 번에 하나, 같은 job_id 를 다른 내용으로 보내면 409) | `api/jobs/` |
 | GET | `/jobs/{id}` | 작업 상태 (현재 단계, 경과 시간, 실패 시 에러) | `api/jobs/` |
 | POST | `/jobs/{id}/cancel` | 작업 중지 (ffmpeg 등 하위 프로세스까지) | `api/jobs/` |
-| POST | `/estimate` | 번역 예상 입력 토큰 (무료) | `api/estimate/` |
+| POST | `/estimate` | 번역 예상 입력 토큰 (무료). 고친 대사(`text_overrides`)도 같은 값으로 계산 | `api/estimate/` |
 
 `app/main.py`는 FastAPI 앱을 만들고 router 를 묶기만 한다. 작업 기록은 메모리에만 있어서 서버를 다시 띄우면 사라진다 (결과 파일은 남는다).
 
