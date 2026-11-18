@@ -8,17 +8,13 @@
 ## 스킬 먼저 (esports-dev 플러그인)
 아래 작업은 코드를 보거나 명령을 치기 전에 해당 스킬을 먼저 부른다. 이 문서의 구조·명령만 보고 바로 하면 스킬에 적힌 순서와 같이 고칠 곳(스펙, 다른 레포)을 빠뜨린다.
 - 엔드포인트 추가, `/videos`·`/jobs` 요청·응답 모양 변경(파라미터·필드 추가 포함) → `esports-dev:add-endpoint`
-- 파이프라인 단계 새로 만들기·예정 단계(evaluate) 구현 → `esports-dev:add-stage`
-- 단계 실행·구간 실행·재실행 → `esports-dev:pipeline-run`, 번역 실행·비용 확인 → `esports-dev:translate-run`
-- `configs/` 화면 OCR 영역·허용 문자·검증 정규식 수정 → `esports-dev:roi-config`
-- 분석 작업 실패·멈춤 원인 찾기 → `esports-dev:job-debug`
-- README·CLAUDE.md·PLAN.md·CHECKLIST.md 를 코드에 맞추기 → `esports-dev:docs-sync`
 
 ## 이 레포의 역할
 중계 영상 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는 얇은 층이고, 실제 처리는 `pipeline/`에서 한다.
 분석은 수십 분 걸리는 작업이므로 FastAPI BackgroundTasks가 아니라 큐 + 워커로 실행할 예정.
 
 ## 구조
+- 테스트 `tests/` (HTTP 서버 스모크, 분석 단계는 안 돌림). CI: `.github/workflows/ci.yml` (푸시·PR 마다 문법 확인 + 테스트, torch 등 무거운 의존성은 설치 안 함)
 - `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
   - 단계: preprocess → segments → hls → roi_ocr → asr → translate → evaluate(예정)
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
