@@ -1,0 +1,25 @@
+# 푸시·PR 마다 문법 확인과 HTTP 서버 스모크 테스트.
+# 분석 단계 의존성(torch · faster-whisper · onnxruntime …)은 수 GB 라 설치하지 않는다. 서버는 단계 모듈을 실행할 때만 불러온다
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 문법 확인
+        run: python -m compileall -q api app pipeline
+      - name: 서버 의존성만 설치 (requirements.txt 의 고정 버전)
+        run: pip install $(grep -E '^(fastapi|pydantic|httpx)==' requirements.txt)
+      - name: 테스트
+        run: python -m unittest discover -s tests -v
