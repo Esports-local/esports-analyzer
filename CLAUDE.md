@@ -8,6 +8,7 @@
 ## 스킬 먼저 (esports-dev 플러그인)
 아래 작업은 코드를 보거나 명령을 치기 전에 해당 스킬을 먼저 부른다. 이 문서의 구조·명령만 보고 바로 하면 스킬에 적힌 순서와 같이 고칠 곳(스펙, 다른 레포)을 빠뜨린다.
 - 엔드포인트 추가, `/videos`·`/jobs` 요청·응답 모양 변경(파라미터·필드 추가 포함) → `esports-dev:add-endpoint`
+- 로컬 서버 띄우기·끄기·로그 → `esports-dev:local-up`
 
 ## 이 레포의 역할
 중계 영상 분석 파이프라인. HTTP 서버는 작업 접수/조회/취소만 하는 얇은 층이고, 실제 처리는 `pipeline/`에서 한다.
@@ -16,13 +17,15 @@
 ## 구조
 - 테스트 `tests/` (HTTP 서버 스모크, 분석 단계는 안 돌림). CI: `.github/workflows/ci.yml` (푸시·PR 마다 문법 확인 + 테스트, torch 등 무거운 의존성은 설치 안 함)
 - `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
-  - 단계: preprocess → segments → hls → roi_ocr → asr → translate → evaluate(예정)
+  - 단계: preprocess → segments → hls → roi_ocr → asr → translate → timeline → evaluate(예정)
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
 - `pipeline/roi_ocr.py`: 중계 화면 고정 영역 OCR (RapidOCR 글자 인식만). 설정은 `configs/<종목>/<레이아웃>.json`
   (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`, `static`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택, 지금은 팀 로고 글꼴 보정용 `teams.json`만).
   결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다
 - `pipeline/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
 - `pipeline/translate.py`: 조건 A(대사)·B(+화면 OCR)·C(+프레임) 영어 번역, Gemini REST (`GEMINI_API_KEY`). 기본 A·B, `dry_run`(입력 토큰만 셈, 무료), 기존 번역 재사용. `text_overrides`(api 가 보내는 사람이 고친 대사)는 ASR 원문 대신 번역하고, 결과 `sources`에 번역한 문장을 남겨 문장이 바뀐 대사만 다시 번역. 화면 정보는 `pipeline/screen.py`
+- `pipeline/timeline.py`: 화면 숫자(팀 킬·타워·오브젝트 수)가 오른 시점 → 경기 이벤트 `work/timeline.json` (LLM 없음). 잡음 정리(min_samples, 줄어든 값·급증 버림), 못 읽은 구간이 끼면 start_sec~end_sec 범위로, 킬은 앞뒤 3초 KDA 변화로 killer·victims·assists, 앞뒤 5초 대사 id
+- `pipeline/shorts.py`: 숏폼 렌더 (ffmpeg 한 번). 구간들 → 세로 720x1280 (흐린 배경 + 제목 + 스코어보드 띠 + 경기 화면 가운데 + 해설 자막 ASS, 한글 글꼴 fonts-nanum). 임시 파일에 쓰고 이름을 바꿔 결과로 만든다, 옆에 렌더 기록 .json
 - `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set translate.dry_run=true`)
 - `app/main.py`: FastAPI 앱. 엔드포인트 router 를 묶기만 한다 (`uvicorn app.main:app`)
 - `api/`: HTTP 엔드포인트. 엔드포인트마다 폴더 하나 (`views.py` router + `schemas.py` 요청·응답 모양 = 연동 스펙). 큐는 아직 없음
@@ -31,6 +34,7 @@
   - `jobs/`: `POST /jobs`(파이프라인을 프로세스로 실행, 한 번에 하나, 로그 `work/job.log`), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`
     - 같은 job_id 를 다른 내용으로 보내면 409. 취소는 프로세스 그룹째(ffmpeg 등 하위 프로세스까지). 끝난 작업 기록은 최근 100개만 남김
   - `estimate/`: `POST /estimate` (번역 입력 토큰)
+  - `shorts/`: `POST /shorts`(숏폼 렌더 접수), `GET /shorts/{key}`. /jobs 와 달리 거절하지 않고 줄을 세운다 (워커 스레드 하나). 같은 key·내용이면 기존 상태, 실패한 것이면 다시 줄 세움, 다른 내용이면 409. 서버를 다시 띄워도 결과 파일이 있으면 succeeded
 
 ```
 docker build -t esports-analyzer .

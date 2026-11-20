@@ -16,7 +16,10 @@ LoL 한국어 중계 → 영어 번역에서 **화면 글자(OCR)로 고유명�
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만), 같은 값이 이어진 구간 | `work/roi_ocr.json` |
 | asr | faster-whisper (Silero VAD), 대사 | `work/asr.json` |
 | translate | 조건별 영어 번역 (A 대사 / B + 화면 OCR / C + 프레임), Gemini. 사람이 고친 대사(`text_overrides`)가 있으면 그 문장으로 번역하고, 문장이 바뀐 대사만 다시 번역 | `work/translate.json` |
+| timeline | 화면 숫자(팀 킬·타워·오브젝트)가 오른 시점 → 경기 이벤트 (LLM 없음). 킬은 KDA 변화로 killer·victims·assists | `work/timeline.json` |
 | evaluate | 고유명사 평가 | 예정 |
+
+숏폼(`pipeline/shorts.py`)은 단계가 아니라 요청마다 만든다: 고른 이벤트 구간 → 세로 720x1280 mp4 (스코어보드 띠 + 경기 화면 + 해설 자막) → `shorts/<key>.mp4`. 17초 숏폼 렌더 약 3초 (CPU).
 
 ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
 
@@ -31,6 +34,8 @@ esports-api 가 부른다. 요청·응답 모양은 엔드포인트 폴더의 `s
 | GET | `/jobs/{id}` | 작업 상태 (현재 단계, 경과 시간, 실패 시 에러) | `api/jobs/` |
 | POST | `/jobs/{id}/cancel` | 작업 중지 (ffmpeg 등 하위 프로세스까지) | `api/jobs/` |
 | POST | `/estimate` | 번역 예상 입력 토큰 (무료). 고친 대사(`text_overrides`)도 같은 값으로 계산 | `api/estimate/` |
+| POST | `/shorts` | 숏폼 렌더 접수. 다른 렌더가 돌고 있으면 줄을 세운다. 같은 key·내용은 기존 상태, 실패한 것은 다시 렌더 | `api/shorts/` |
+| GET | `/shorts/{key}` | 숏폼 상태 (대기 순서, 렌더 시간, 결과 경로) | `api/shorts/` |
 
 `app/main.py`는 FastAPI 앱을 만들고 router 를 묶기만 한다. 작업 기록은 메모리에만 있어서 서버를 다시 띄우면 사라진다 (결과 파일은 남는다).
 
