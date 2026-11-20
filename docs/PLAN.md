@@ -35,7 +35,7 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
   - 지금: Worlds 2026 4강 BLG vs T1 2세트 — 한국어 해설 17분, 영어 해설 10분
   - 영어 해설은 고유명사 표기 참고용 (문장 단위 대응 번역본은 아님)
 - 경기 정보: op.gg 경기 페이지(`esports.op.gg/matches/<번호>`)의 페이지 안 JSON. 경기·팀·스코어·세트 id·영상 링크 (api `import_match`)
-  - 세트별 진영·선수는 화면 OCR, 챔피언은 시작 화면 선수 카드 OCR 예정 (op.gg 페이지 HTML에 없음)
+  - 세트별 진영·선수·챔피언·밴: op.gg 세트 정보(`/matches/graphql` GetGameByMatch, 경기 페이지 HTML에는 없음). 챔피언 번호 → 이름은 Riot Data Dragon. op.gg 로 못 받으면 화면 OCR 로 팀·선수만 채움
 - 챔피언 한국어 ↔ 영어: Riot Data Dragon (`ko_KR` / `en_US`)
 
 ## 4. 파이프라인 (esports-analyzer)
