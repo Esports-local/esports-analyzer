@@ -13,6 +13,11 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 숏폼 자막용 한글 글꼴 (pip 층 뒤에 두어 글꼴만 바꿀 때 패키지를 다시 받지 않게)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-nanum \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 
 EXPOSE 8001

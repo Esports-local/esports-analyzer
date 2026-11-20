@@ -170,3 +170,33 @@ class TranslateResult(BaseModel):
     lines: dict[str, dict[str, str]]
     usage: TranslateUsage
     sources: dict[str, str] = {}  # {대사 id: 번역할 때 쓴 한국어 문장} (사람이 고쳤으면 고친 문장)
+
+
+# ---------------------------------------------------------------- timeline (화면 숫자 변화 → 경기 이벤트)
+
+EventType = Literal["kill", "tower", "objective"]
+
+
+class TimelineEvent(TimeSpan):
+    """화면 숫자(팀 킬·타워·오브젝트 수)가 오른 시점. 숏폼 구간의 기준점.
+
+    start_sec: 이벤트가 일어났을 수 있는 가장 이른 시각 (앞 값이 마지막으로 읽힌 때).
+    end_sec: 새 값이 처음 읽힌 시각. 화면이 계속 보였으면 둘이 거의 같다.
+    """
+
+    id: int
+    type: EventType
+    team: str                     # 진영 슬롯 (blue / red)
+    team_name: str | None = None  # 화면에서 읽은 팀 이름
+    value_before: int
+    value_after: int
+    game_time: str | None = None  # 새 값이 읽힌 시점의 경기 시계 (mm:ss)
+    players: dict[str, list[str]] = {}  # {"killer": [...], "victims": [...], "assists": [...]} KDA 변화로 찾은 것만
+    line_ids: list[int] = []      # 앞뒤 대사 (asr)
+    evidence: list[str] = []      # 근거가 된 OCR 변화 ("team_kills/red 2→3 @386.0")
+
+
+class TimelineResult(BaseModel):
+    events: list[TimelineEvent]
+    teams: dict[str, str] = {}    # {진영: 팀 이름}
+    players: dict[str, str] = {}  # {진영_포지션: 선수 이름}

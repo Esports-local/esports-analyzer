@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from api import views as common
 from api.estimate import views as estimate
 from api.jobs import views as jobs
+from api.shorts import views as shorts
 from api.videos import views as videos
 
 app = FastAPI(title="esports-analyzer")
@@ -16,3 +17,4 @@ app.include_router(common.router, tags=["health"])
 app.include_router(videos.router, tags=["videos"])  # 원본 영상 목록
 app.include_router(jobs.router, tags=["jobs"])  # 분석 작업 시작·조회·취소
 app.include_router(estimate.router, tags=["estimate"])  # 번역 예상 입력 토큰
+app.include_router(shorts.router, tags=["shorts"])  # 숏폼 렌더 접수·조회 (줄 세움)
