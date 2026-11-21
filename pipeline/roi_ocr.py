@@ -1,12 +1,12 @@
 """roi_ocr 단계: 중계 화면의 고정 영역(ROI)을 OCR 로 읽어, 값이 이어진 구간 목록을 만든다.
 
-설정 파일(configs/<종목>/<레이아웃>.json)은 영역 목록이다. 항목마다
+설정 파일(configs/<종목>/<레이아웃>.json)의 rois 가 영역 목록이다 (screens 는 segments 가 쓴다). 항목마다
 - tag, slot, kind: 결과 이름 (예: player_name / blue_top / player)
 - ocr_roi [x1, y1, x2, y2]: 기준 해상도(base_resolution, 기본 1920x1080) 픽셀 좌표
 - ocr_scale: 작은 글자를 키워서 읽는 배율
+- char_map: 글꼴 때문에 잘못 읽는 문자 바꾸기 (예: LCK 숫자 0 → {"o": "0", "O": "0"}). allowed_text 보다 먼저
 - allowed_text: 남길 문자 (그 밖의 문자는 지운다)
 - validation: regex(전체 일치), min_confidence. 통과하지 못하면 그 샘플은 "못 읽음"
-- lexicon: 사전 이름. configs/<종목>/lexicon/<이름>.json 이 있으면 가장 가까운 정식 이름으로 고친다 (없으면 그대로)
 - static: 경기 중 바뀌지 않는 값(선수 이름, 팀 등). 같은 값이 static_lock_sec 동안 이어지면 확정하고
   그 뒤로는 읽지 않는다. 결과는 확정한 구간 하나 (영상 끝까지)
 
@@ -21,24 +21,23 @@ import logging
 import re
 import subprocess
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from pipeline.io import save_stage
+from pipeline.layouts import resolve
 from pipeline.schema import OcrRun, RoiOcrResult
 
 log = logging.getLogger(__name__)
 
 DEFAULT_PARAMS = {
-    "layout": "configs/lol/worlds_2026.json",
+    "layout": "auto",  # 설정 파일 경로, auto 면 header 리그로 고름 (pipeline/layouts.py, configs/lol/layouts.json)
     "base_resolution": [1920, 1080],
     "sample_fps": 2.0,
     "change_threshold": 3.0,  # 영역 회색조 평균 차이(0~255)가 이 값 이상이면 다시 OCR
     "hold_sec": 1.0,          # 못 읽은 샘플이 이 시간 이하로 끼면 구간을 이어 간다
-    "lexicon_min_ratio": 0.6,  # 사전 대조: 이 비율 이상 비슷한 이름이 있으면 그 이름으로 고친다
     "static_lock_sec": 5.0,   # static 영역: 같은 값이 이 시간 이어지면 확정
     "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
 }
@@ -56,9 +55,9 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         work/roi_ocr.json 경로.
     """
     p = {**DEFAULT_PARAMS, **(params or {})}
+    p["layout"] = resolve(p["layout"], work_dir)
     layout = Path(p["layout"])
-    rois = [Roi.from_config(c, i) for i, c in enumerate(json.loads(layout.read_text(encoding="utf-8")))]
-    lexicons = load_lexicons(layout.parent / "lexicon", {r.lexicon for r in rois if r.lexicon})
+    rois = [Roi.from_config(c, i) for i, c in enumerate(json.loads(layout.read_text(encoding="utf-8"))["rois"])]
     width, height = p["base_resolution"]
     reader = OcrReader()
     step = 1 / p["sample_fps"]
@@ -75,7 +74,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
             crop = gray[y1:y2, x1:x2]
             if roi.last_crop is None or np.abs(crop - roi.last_crop).mean() >= p["change_threshold"]:
                 roi.last_crop = crop
-                roi.last_read = roi.read(frame, reader, lexicons, p["lexicon_min_ratio"])
+                roi.last_read = roi.read(frame, reader)
                 calls += 1
             roi.add(t, step, roi.last_read, p["hold_sec"])
             if roi.static and roi.try_lock(p["static_lock_sec"]):
@@ -157,10 +156,10 @@ class Roi:
     kind: str | None
     box: tuple[int, int, int, int]
     scale: int = 1
+    char_map: dict[str, str] = field(default_factory=dict)
     allowed: str | None = None
     regex: str | None = None
     min_conf: float = 0.0
-    lexicon: str | None = None
     static: bool = False
     locked: bool = False
     last_crop: np.ndarray | None = None
@@ -180,22 +179,20 @@ class Roi:
             raise ValueError(f"설정 {index}번({c.get('tag')}): ocr_roi 는 [x1, y1, x2, y2] 여야 합니다: {box}")
         v = c.get("validation", {})
         return cls(tag=c["tag"], slot=c.get("slot", ""), kind=c.get("kind"), box=tuple(box),
-                   scale=int(c.get("ocr_scale", 1)), allowed=c.get("allowed_text"), regex=v.get("regex"),
-                   min_conf=float(v.get("min_confidence", 0.0)), lexicon=c.get("lexicon"),
+                   scale=int(c.get("ocr_scale", 1)), char_map=dict(c.get("char_map") or {}), allowed=c.get("allowed_text"), regex=v.get("regex"),
+                   min_conf=float(v.get("min_confidence", 0.0)),
                    static=bool(c.get("static", False)))
 
-    def read(self, frame: np.ndarray, reader: OcrReader, lexicons: dict, min_ratio: float) -> Reading:
-        """영역을 잘라 OCR 하고 정리·검증·사전 대조까지 한다."""
+    def read(self, frame: np.ndarray, reader: OcrReader) -> Reading:
+        """영역을 잘라 OCR 하고 정리·검증한다."""
         x1, y1, x2, y2 = self.box
         crop = Image.fromarray(frame[y1:y2, x1:x2])
         if self.scale > 1:
             crop = crop.resize((crop.width * self.scale, crop.height * self.scale), Image.LANCZOS)
         raw, conf = reader(np.asarray(crop))
-        text = raw
+        text = "".join(self.char_map.get(ch, ch) for ch in raw)
         if self.allowed is not None:
             text = "".join(ch for ch in text if ch in self.allowed)
-        if self.lexicon in lexicons and text:
-            text = match_lexicon(text, lexicons[self.lexicon], min_ratio) or text
         valid = bool(text) and conf >= self.min_conf and (self.regex is None or re.fullmatch(self.regex, text))
         return Reading(raw=raw, text=text, conf=conf, valid=bool(valid))
 
@@ -243,37 +240,3 @@ class Roi:
                                     conf=round(sum(cur["confs"]) / len(cur["confs"]), 3),
                                     samples=len(cur["confs"])))
 
-
-def load_lexicons(folder: Path, names: set[str]) -> dict[str, dict[str, str]]:
-    """사전 파일을 읽는다. 파일이 없는 사전은 건너뛴다 (대조 없이 OCR 결과 그대로 씀).
-
-    사전 파일 <folder>/<이름>.json 형식: [{"name": "Faker", "aliases": ["페이커", "Hide on bush"]}, ...]
-
-    Returns:
-        {사전 이름: {비교용 소문자 표기: 정식 이름}}
-    """
-    out = {}
-    for name in names:
-        path = folder / f"{name}.json"
-        if not path.exists():
-            log.warning("roi_ocr: 사전 %s 없음 → 대조 없이 진행", path)
-            continue
-        table = {}
-        for entry in json.loads(path.read_text(encoding="utf-8")):
-            for key in [entry["name"], *entry.get("aliases", [])]:
-                table[key.lower()] = entry["name"]
-        out[name] = table
-    return out
-
-
-def match_lexicon(text: str, table: dict[str, str], min_ratio: float) -> str | None:
-    """OCR 결과와 가장 비슷한 사전 표기의 정식 이름. min_ratio 미만이면 None."""
-    key = text.lower()
-    if key in table:
-        return table[key]
-    best, score = None, 0.0
-    for k, name in table.items():
-        s = SequenceMatcher(None, key, k).ratio()
-        if s > score:
-            best, score = name, s
-    return best if score >= min_ratio else None

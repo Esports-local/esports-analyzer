@@ -1,0 +1,8 @@
+{
+ "note": "중계 화면 레이아웃 자동 선택. header 의 리그(match.league) → 레이아웃 파일. 없거나 모르는 리그면 default",
+ "leagues": {
+  "LCK": "configs/lol/lck_2026.json",
+  "Worlds": "configs/lol/worlds_2026.json"
+ },
+ "default": "configs/lol/worlds_2026.json"
+}
