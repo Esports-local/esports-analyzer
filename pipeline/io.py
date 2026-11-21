@@ -82,3 +82,4 @@ def skip_spans(work_dir: Path, kinds: list[str]) -> list[tuple[float, float]]:
 
 def in_spans(spans: list[tuple[float, float]], t: float) -> bool:
     return any(a <= t < b for a, b in spans)
+

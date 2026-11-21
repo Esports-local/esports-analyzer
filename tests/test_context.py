@@ -55,3 +55,11 @@ class ContextTest(unittest.TestCase):
         s = build_signals(5, runs, {"transitions": [{"start_sec": 2.0}]}, segs, [0.1] * 10, DEFAULT_PARAMS)
         self.assertEqual(s["gold_diff"], [None, None, 500.0, 500.0, 500.0, 500.0])
         self.assertEqual((s["cut_rate"], s["kind"][0], len(s["loudness"])), ([1] * 6, "live", 6))
+
+    def test_signals_start_at_range(self):
+        runs = [{"tag": "gold", "slot": "blue", "start_sec": 901, "end_sec": 903, "text": "5.0K"},
+                {"tag": "gold", "slot": "red", "start_sec": 901, "end_sec": 903, "text": "4.0K"}]
+        s = build_signals(904, runs, {"transitions": [{"start_sec": 902.0}]}, [], [0.5] * 5, DEFAULT_PARAMS, start=900)
+        self.assertEqual((s["start_sec"], len(s["gold_diff"]), s["gold_diff"][:2], len(s["loudness"])),
+                         (900, 5, [None, 1000.0], 5))
+        self.assertEqual(s["cut_rate"], [1] * 5)

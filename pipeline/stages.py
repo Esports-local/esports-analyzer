@@ -143,6 +143,9 @@ def run_pipeline(
         peak_mb = _peak_rss_mb()
         log.info("[%s] 완료 %.1f초, 최대 메모리 %.0fMB → %s", name, elapsed, peak_mb, results[name])
         _append_run_log(work_dir, name, elapsed, peak_mb)
+    from pipeline.game import bundle
+
+    log.info("단계 결과 묶음 (시간순 트리) → %s", bundle.write(work_dir))
     return results
 
 

@@ -61,16 +61,11 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         header=load("header"), runs=roi["runs"], timeline=load("timeline"), segments=load("segments"),
         lines=(load("asr") or {}).get("lines", []),
         duration=pre.get("duration_sec") or max((r["end_sec"] for r in roi["runs"]), default=0.0),
-        loudness=_pad(loudness(work_dir / "work" / "audio.wav", p["step_sec"]), pre.get("range_start_sec") or 0.0,
-                      p["step_sec"]), p=p)
+        loudness=loudness(work_dir / "work" / "audio.wav", p["step_sec"]), p=p,
+        start=pre.get("range_start_sec") or 0.0)
     log.info("context: clock %d구간, 구간 %d, 이벤트 %d, 경기 %s", len(result.clock), len(result.segments),
              len(result.events), result.game)
     return save_stage(work_dir, "context", result, p)
-
-
-def _pad(values: list | None, start: float, step: float) -> list | None:
-    """일부 구간만 뽑은 audio.wav 의 신호를 원본 시각에 맞춘다 (앞은 None)."""
-    return None if values is None else [None] * int(round(start / step)) + values
 
 
 def _result(work_dir: Path, stage: str) -> dict | None:
@@ -82,14 +77,15 @@ def _result(work_dir: Path, stage: str) -> dict | None:
 
 
 def build_context(header: dict | None, runs: list[dict], timeline: dict | None, segments: dict | None,
-                  lines: list[dict], duration: float, loudness: list[float] | None, p: dict) -> ContextResult:
+                  lines: list[dict], duration: float, loudness: list[float] | None, p: dict,
+                  start: float = 0.0) -> ContextResult:
     players = build_players(header)
     clock = build_clock(runs, p["clock_tolerance_sec"], p["clock_min_sec"], p["clock_gap_sec"])
     segs = build_segments(segments)
     events = build_events(timeline, players, segs, p)
     return ContextResult(
         game=build_game(header, segments, clock), players=players, clock=clock, segments=segs, events=events,
-        signals=build_signals(duration, runs, segments, segs, loudness, p))
+        signals=build_signals(duration, runs, segments, segs, loudness, p, start))
 
 
 # ---------------------------------------------------------------- 경기 · 선수 · 시계
@@ -265,16 +261,21 @@ def gold_value(text: str) -> float | None:
 
 
 def build_signals(duration: float, runs: list[dict], segments: dict | None, segs: list[dict],
-                  loud: list[float] | None, p: dict) -> dict:
-    """step 초 간격 신호. gold_diff 는 블루 - 레드 (마지막으로 읽힌 값을 이어 씀, 읽기 전에는 None)."""
+                  loud: list[float] | None, p: dict, start: float = 0.0) -> dict:
+    """step 초 간격 신호. 분석한 구간(start ~ duration)만 담는다: 칸 i = 영상 start + i*step 초.
+
+    gold_diff 는 블루 - 레드 (마지막으로 읽힌 값을 이어 씀, 읽기 전에는 None). loudness 는 audio.wav 가
+    이미 start 부터 뽑혀 있으므로 그대로 쓴다.
+    """
     step = p["step_sec"]
-    n = int(duration // step) + 1
-    times = [i * step for i in range(n)]
+    n = max(0, int((duration - start) // step) + 1)
+    times = [start + i * step for i in range(n)]
+    idx = lambda t: int((t - start) // step)
 
     gold = {"blue": [None] * n, "red": [None] * n}
     for r in runs:
         if r["tag"] == "gold" and r["slot"] in gold and (v := gold_value(r["text"])) is not None:
-            for i in range(int(r["start_sec"] // step), min(n, int(r["end_sec"] // step) + 1)):
+            for i in range(max(0, idx(r["start_sec"])), min(n, idx(r["end_sec"]) + 1)):
                 gold[r["slot"]][i] = v
     diff, last = [], {"blue": None, "red": None}
     for i in range(n):
@@ -286,5 +287,5 @@ def build_signals(duration: float, runs: list[dict], segments: dict | None, segs
     w = p["cut_window_sec"]
     cut_rate = [sum(1 for c in cuts if abs(c - t) <= w) for t in times] if cuts else []
 
-    return {"step_sec": step, "start_sec": 0.0, "loudness": (loud or [])[:n], "gold_diff": diff,
+    return {"step_sec": step, "start_sec": start, "loudness": (loud or [])[:n], "gold_diff": diff,
             "cut_rate": cut_rate, "kind": [kind_at(segs, t) for t in times] if segs else []}
