@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pipeline.io import load_stage, save_stage, stage_path
+from pipeline.io import load_stage, save_stage, skip_spans, stage_path
 from pipeline.schema import AsrResult, Line, PreprocessResult
 
 DEFAULT_PARAMS = {
@@ -44,6 +44,8 @@ DEFAULT_PARAMS = {
     "diarization": "none",  # none / pyannote
     "merge_gap_sec": 1.0,  # 같은 화자 단어 사이가 이 이하면 같은 줄
     "max_line_sec": 30.0,  # 한 줄이 이보다 길어지면 끊는다
+    # segments 구간 종류가 이 중 하나면 받아 적지 않는다 (밴픽·카운트다운 뮤직비디오·쉬는 시간). 그 구간 소리를 0 으로
+    "skip_kinds": ["draft", "countdown", "break"],
     "terms": True,         # header 단어로 고유명사 교정 (pipeline/audio/terms.py). header 가 없으면 건너뜀
     "terms_extra": [],     # 교정 사전에 더할 이름 [{text, kind(player|team), slot}] (api 의 선수 한국어 이름표)
     "terms_min_score": 0.78,
@@ -71,6 +73,12 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     audio = work_dir / pre.audio_file.path
 
     samples = load_wav(audio)
+    skip = skip_spans(work_dir, p["skip_kinds"])
+    if skip:  # 건너뛸 구간은 무음으로 → VAD 가 말소리 덩어리로 안 잡는다
+        off = pre.range_start_sec
+        for a, b in skip:
+            samples[max(0, int((a - off) * SAMPLE_RATE)) : max(0, int((b - off) * SAMPLE_RATE))] = 0.0
+        log.info("asr: 건너뛴 구간 %d개, %.0f초", len(skip), sum(b - a for a, b in skip))
     model = load_whisper(p["model"], p["device"], p["compute_type"])
     segments = transcribe(model, samples, p)
     turns = diarize(audio, p["diarization"])

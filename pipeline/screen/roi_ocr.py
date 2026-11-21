@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from pipeline.io import save_stage
+from pipeline.io import in_spans, save_stage, skip_spans
 from pipeline import media
 from pipeline.media import iter_frames
 from pipeline.screen.layout import resolve
@@ -42,6 +42,8 @@ DEFAULT_PARAMS = {
     "hold_sec": 1.0,          # 못 읽은 샘플이 이 시간 이하로 끼면 구간을 이어 간다
     "static_lock_sec": 5.0,   # static 영역: 같은 값이 이 시간 이어지면 확정
     "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
+    # segments 구간 종류가 이 중 하나면 OCR 하지 않는다 (점수판이 없거나 가려진 화면). segments 가 없으면 전부 읽음
+    "skip_kinds": ["replay", "postgame", "draft", "countdown", "break"],
 }
 
 
@@ -64,10 +66,14 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     reader = OcrReader()
     step = 1 / p["sample_fps"]
 
-    frames = calls = 0
+    skip = skip_spans(work_dir, p["skip_kinds"])
+    frames = calls = skipped = 0
     for i, frame in enumerate(iter_frames(video, width, height, p["sample_fps"], p["crop"])):
         t = media.START_SEC + i * step
         frames += 1
+        if in_spans(skip, t):
+            skipped += 1
+            continue
         gray = np.asarray(Image.fromarray(frame).convert("L"), np.int16)
         for roi in rois:
             if roi.locked:
@@ -85,8 +91,8 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         if roi.locked:
             roi.extend_to(media.START_SEC + frames * step)
     runs = sorted((r for roi in rois for r in roi.finish()), key=lambda r: (r.start_sec, r.tag, r.slot))
-    log.info("roi_ocr: 프레임 %d장, 영역 %d개, OCR %d회 (재사용 %d회), 구간 %d개",
-             frames, len(rois), calls, frames * len(rois) - calls, len(runs))
+    log.info("roi_ocr: 프레임 %d장 (건너뜀 %d), 영역 %d개, OCR %d회 (재사용 %d회), 구간 %d개",
+             frames, skipped, len(rois), calls, (frames - skipped) * len(rois) - calls, len(runs))
 
     result = RoiOcrResult(layout=str(layout), sample_fps=p["sample_fps"], base_resolution=(width, height),
                           rois=len(rois), frames=frames, ocr_calls=calls, runs=runs)

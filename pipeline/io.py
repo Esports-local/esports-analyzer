@@ -57,3 +57,28 @@ def load_stage(work_dir: Path, stage: str, result_type: type[BaseModel]) -> Stag
         pydantic.ValidationError: 파일 형식이 스키마와 다름.
     """
     return StageOutput[result_type].model_validate_json(stage_path(work_dir, stage).read_text(encoding="utf-8"))
+
+
+def skip_spans(work_dir: Path, kinds: list[str]) -> list[tuple[float, float]]:
+    """segments 결과에서 kind 가 kinds 중 하나인 구간 [(start, end)] (원본 영상 초). segments 가 없으면 빈 목록.
+
+    roi_ocr · asr 가 필요 없는 화면(밴픽·쉬는 시간·카운트다운 등)을 건너뛸 때 쓴다.
+    """
+    import json
+
+    path = stage_path(work_dir, "segments")
+    if not kinds or not path.exists():
+        return []
+    segs = (json.loads(path.read_text(encoding="utf-8")).get("result") or {}).get("segments", [])
+    spans: list[tuple[float, float]] = []
+    for s in segs:
+        if s.get("kind") in kinds:
+            if spans and abs(spans[-1][1] - s["start_sec"]) < 1.0:  # 붙어 있으면 (전환 구간 포함) 하나로
+                spans[-1] = (spans[-1][0], s["end_sec"])
+            else:
+                spans.append((s["start_sec"], s["end_sec"]))
+    return spans
+
+
+def in_spans(spans: list[tuple[float, float]], t: float) -> bool:
+    return any(a <= t < b for a, b in spans)
