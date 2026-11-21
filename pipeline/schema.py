@@ -1,8 +1,7 @@
 """파이프라인 데이터 스키마 (schema_version 1).
 
 단위
-- ts: 재생용 HLS 조각. 하드컷·전환 경계에서 자르고, 4초보다 길면 균등 분할
-- segment: 전환(cut/gradual) 사이의 연속 구간 (중계 화면 전환: 경기 화면 ↔ 캠·리플레이 등)
+- segment: 장면 전환(cut · dissolve · wipe) 사이의 연속 구간. 화면 종류(live · replay · postgame · break)가 붙는다
 - line: 해설 대사 한 줄 (asr)
 - OcrRun: 중계 화면 고정 영역(tag + slot)에서 같은 값이 이어진 구간 (roi_ocr)
 
@@ -13,10 +12,7 @@
 
 파일 구성 (outputs/<영상명>/)
 - work/<stage>.json   단계 사이에 넘기는 중간 결과. 재실행·디버그용
-- hls/index.m3u8      재생용. ts 목록·길이, segment·전환 표시
-                        #EXTINF:<길이>,seg=<segment id>
-                        #EXTINF:<길이>,transition=gradual[ black]   (cut 은 한 시점이라 ts 없음)
-                        master.m3u8: RESOLUTION, FRAME-RATE, CODECS, BANDWIDTH
+- shorts/<key>.mp4    숏폼 렌더 결과 (옆에 렌더 기록 .json)
 """
 
 from datetime import datetime, timezone
@@ -26,7 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = 1
 
-TransitionKind = Literal["cut", "gradual"]  # gradual: 디졸브·와이프·페이드 등 구간이 있는 전환
+ScreenKind = Literal["live", "replay", "postgame", "break"]
+TransitionKind = Literal["cut", "dissolve", "wipe"]  # dissolve: 서서히 겹침·페이드, wipe: 한쪽부터 쓸고 지나감
 
 
 class TimeSpan(BaseModel):
@@ -87,29 +84,32 @@ class PreprocessResult(BaseModel):
     audio_file: AudioFile | None
 
 
-# ---------------------------------------------------------------- segments (전환 검출)
+# ---------------------------------------------------------------- segments (장면 전환 + 화면 종류)
 
 class Transition(TimeSpan):
     """segment 사이의 전환. cut 은 start_sec == end_sec (한 시점)."""
 
     id: int
     kind: TransitionKind
-    black: bool = False  # 검은 화면을 거침 (암전). 시간 경과·큰 장면 전환 신호
+    black: bool = False  # 검은 화면을 거침 (암전)
 
 
 class Segment(TimeSpan):
     id: int
     transition_in: int | None = None   # 앞쪽 전환 id (영상 시작이면 None)
     transition_out: int | None = None  # 뒤쪽 전환 id (영상 끝이면 None)
+    kind: ScreenKind | None = None   # live 경기 · replay 리플레이·하이라이트 · postgame 경기 뒤 통계 · break 그 밖 (screens 규칙 있을 때)
+    game_start: str | None = None    # live 면 안에서 처음 읽은 경기 시간 "12:34"
+    game_end: str | None = None      # live 면 안에서 마지막에 읽은 경기 시간
 
 
 class SegmentsResult(BaseModel):
-    transitions: list[Transition]
-    segments: list[Segment]
-
-
-# ---------------------------------------------------------------- hls
-# JSON 대신 hls/index.m3u8 이 결과다 (모듈 docstring 의 #EXTINF 표시 참고).
+    layout: str | None = None        # 쓴 레이아웃 파일
+    sample_sec: float | None = None  # 판별 간격 (구간 경계 오차는 이것의 절반)
+    samples: dict[str, int] = {}     # 종류별 판별 화면 수
+    transitions: list[Transition] = []
+    segments: list[Segment] = []
+    game: dict | None = None         # 경기 구간 {start_sec, end_sec, last_clock, header_length_sec, postgame?, checks?}
 
 
 # ---------------------------------------------------------------- roi_ocr (중계 화면 고정 영역 OCR)
@@ -149,27 +149,6 @@ class Line(TimeSpan):
 
 class AsrResult(BaseModel):
     lines: list[Line]
-
-
-# ---------------------------------------------------------------- translate
-
-class TranslateUsage(BaseModel):
-    requests: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0  # 생각(thinking) 토큰 포함
-
-
-class TranslateResult(BaseModel):
-    """조건별 번역. lines 의 키는 대사 id(문자열), 값은 {조건: 번역문}.
-
-    조건: A 대사만 / B + 화면 OCR / C + 영상 프레임 (docs/PLAN.md 2장)
-    """
-
-    model: str
-    conditions: list[str]
-    lines: dict[str, dict[str, str]]
-    usage: TranslateUsage
-    sources: dict[str, str] = {}  # {대사 id: 번역할 때 쓴 한국어 문장} (사람이 고쳤으면 고친 문장)
 
 
 # ---------------------------------------------------------------- timeline (화면 숫자 변화 → 경기 이벤트)
