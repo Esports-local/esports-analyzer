@@ -78,6 +78,7 @@ def run_pipeline(
     until: str | None = None,
     params: dict[str, dict] | None = None,
     max_sec: float | None = None,
+    start_sec: float | None = None,
 ) -> dict[str, Path | None]:
     """영상 하나에 대해 여러 단계를 STAGES 순서대로 실행한다.
 
@@ -91,8 +92,9 @@ def run_pipeline(
         start: 시작 단계 (포함). 없으면 처음부터.
         until: 끝 단계 (포함). 없으면 끝까지.
         params: {단계 이름: 설정} 단계별 설정 덮어쓰기.
-        max_sec: 앞 max_sec 초만 분석 (빠른 확인용). 결과는 <영상 파일명>_first<초>s/ 에 따로 저장해
-            전체 결과를 덮지 않는다. 시각은 원본과 같다 (0초부터).
+        max_sec: max_sec 초만 분석 (빠른 확인용).
+        start_sec: 이 초부터 분석. 둘 중 하나라도 주면 결과는 <영상 파일명>_<시작>-<끝>s/ 에 따로 저장해
+            전체 결과를 덮지 않는다. 결과 시각은 원본 영상 기준 그대로다.
 
     Returns:
         {단계 이름: 결과 파일 경로}. 건너뛴 단계는 None.
@@ -116,10 +118,14 @@ def run_pipeline(
             raise ValueError(f"start({start}) 가 until({until}) 보다 뒤 단계입니다")
         selected = STAGES[i : j + 1]
 
-    from pipeline.media import set_max_sec
+    from pipeline.media import set_range
 
-    set_max_sec(max_sec)
-    work_dir = Path(out_root) / (Path(video).stem + (f"_first{int(max_sec)}s" if max_sec else ""))
+    set_range(start_sec, max_sec)
+    suffix = ""
+    if start_sec or max_sec:
+        a = int(start_sec or 0)
+        suffix = f"_{a}-{a + int(max_sec)}s" if max_sec else f"_{a}s-"
+    work_dir = Path(out_root) / (Path(video).stem + suffix)
     work_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, Path | None] = {}
     for name in selected:

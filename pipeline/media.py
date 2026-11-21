@@ -7,18 +7,22 @@ from pathlib import Path
 
 import numpy as np
 
-# 앞부분만 분석 (run_pipeline(max_sec=...), CLI --max-sec). 설정하면 영상을 읽는 함수가 앞 MAX_SEC 초만 읽는다
+# 일부 구간만 분석 (run_pipeline(start_sec=, max_sec=), CLI --start-sec · --max-sec).
+# 설정하면 영상을 읽는 함수가 START_SEC 초부터 MAX_SEC 초만 읽는다. 단계 결과 시각은 원본 기준이 되도록
+# 각 단계가 START_SEC 를 더한다 (asr 는 preprocess 의 range_start_sec).
+START_SEC: float = 0.0
 MAX_SEC: float | None = None
 
 
-def set_max_sec(sec: float | None) -> None:
-    global MAX_SEC
-    MAX_SEC = float(sec) if sec else None
+def set_range(start: float | None, max_sec: float | None) -> None:
+    global START_SEC, MAX_SEC
+    START_SEC, MAX_SEC = float(start or 0.0), (float(max_sec) if max_sec else None)
 
 
 def input_args(video: Path) -> list[str]:
-    """ffmpeg 입력 인자. MAX_SEC 가 있으면 앞 MAX_SEC 초만 읽는다."""
-    return (["-t", f"{MAX_SEC:.3f}"] if MAX_SEC else []) + ["-i", str(video)]
+    """ffmpeg 입력 인자. 구간이 정해져 있으면 그 구간만 읽는다."""
+    return ((["-ss", f"{START_SEC:.3f}"] if START_SEC else []) + (["-t", f"{MAX_SEC:.3f}"] if MAX_SEC else [])
+            + ["-i", str(video)])
 
 
 def probe(video: Path) -> dict:

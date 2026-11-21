@@ -61,10 +61,16 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         header=load("header"), runs=roi["runs"], timeline=load("timeline"), segments=load("segments"),
         lines=(load("asr") or {}).get("lines", []),
         duration=pre.get("duration_sec") or max((r["end_sec"] for r in roi["runs"]), default=0.0),
-        loudness=loudness(work_dir / "work" / "audio.wav", p["step_sec"]), p=p)
+        loudness=_pad(loudness(work_dir / "work" / "audio.wav", p["step_sec"]), pre.get("range_start_sec") or 0.0,
+                      p["step_sec"]), p=p)
     log.info("context: clock %d구간, 구간 %d, 이벤트 %d, 경기 %s", len(result.clock), len(result.segments),
              len(result.events), result.game)
     return save_stage(work_dir, "context", result, p)
+
+
+def _pad(values: list | None, start: float, step: float) -> list | None:
+    """일부 구간만 뽑은 audio.wav 의 신호를 원본 시각에 맞춘다 (앞은 None)."""
+    return None if values is None else [None] * int(round(start / step)) + values
 
 
 def _result(work_dir: Path, stage: str) -> dict | None:

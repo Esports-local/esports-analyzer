@@ -82,6 +82,7 @@ class PreprocessResult(BaseModel):
     video: VideoInfo
     audio: AudioInfo | None  # 오디오 트랙이 없으면 None
     audio_file: AudioFile | None
+    range_start_sec: float = 0.0  # 일부 구간만 분석했으면 그 시작 (audio.wav 0초 = 원본 이 초)
 
 
 # ---------------------------------------------------------------- segments (장면 전환 + 화면 종류)
@@ -144,7 +145,9 @@ class Line(TimeSpan):
     id: int
     speaker: str | None = None  # S1, S2 … (화자 분리 전이면 None)
     language: str | None = None  # 대사별 감지 언어 (ko, ja, en …)
-    text: str
+    text: str                    # 고유명사 교정을 거친 문장 (pipeline/audio/terms.py)
+    raw: str | None = None       # whisper 원문 (교정으로 바뀐 게 있을 때만)
+    fixes: list[dict] = []       # [{from, to, kind, slot, score}] 바꾼 내역
 
 
 class AsrResult(BaseModel):

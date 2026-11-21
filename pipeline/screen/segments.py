@@ -27,6 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
+from pipeline import media
 from pipeline.io import save_stage, stage_path
 from pipeline.screen.layout import load as load_layout
 from pipeline.screen.layout import resolve
@@ -69,6 +70,8 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     transitions = [classify(frames, luma, a, b, kind, i, fps, p) for i, (a, b, kind) in enumerate(spans, 1)]
     del frames
     transitions, segments = build_segments(transitions, duration, p["min_segment_sec"])
+    if media.START_SEC:  # 일부 구간만 읽었으면 원본 시각으로
+        transitions, segments = shift(transitions, media.START_SEC), shift(segments, media.START_SEC)
     log.info("segments: 전환 %d개 %s", len(transitions),
              {k: sum(1 for t in transitions if t.kind == k) for k in ("cut", "dissolve", "wipe")})
 
@@ -90,7 +93,7 @@ def label_screens(video: Path, work_dir: Path, result: SegmentsResult, screens: 
     rules, default, step = load_rules(screens)
     reader = OcrReader()
     t0 = time.monotonic()
-    samples = [{"t": round(i * step, 3), **classify_frame(f, rules, default, reader)}
+    samples = [{"t": round(media.START_SEC + i * step, 3), **classify_frame(f, rules, default, reader)}
                for i, f in enumerate(iter_frames(video, 1920, 1080, 1 / step))]
     labeled = label_segments([s.model_dump() for s in result.segments], samples, default)
     counts = {k: sum(1 for s in samples if s["kind"] == k) for k in sorted({s["kind"] for s in samples})}
@@ -98,6 +101,12 @@ def label_screens(video: Path, work_dir: Path, result: SegmentsResult, screens: 
     log.info("segments: 화면 %d장 판별 %s (%.0f초), 경기 구간 %s", len(samples), counts, time.monotonic() - t0, game)
     return result.model_copy(update={"segments": [Segment(**s) for s in labeled], "sample_sec": step,
                                      "samples": counts, "game": game})
+
+
+def shift(items: list, off: float) -> list:
+    """Transition · Segment 목록의 시각에 off 초를 더한다."""
+    return [x.model_copy(update={"start_sec": round(x.start_sec + off, 3), "end_sec": round(x.end_sec + off, 3)})
+            for x in items]
 
 
 def _header(work_dir: Path) -> dict | None:

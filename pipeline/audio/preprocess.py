@@ -47,10 +47,11 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
     result = PreprocessResult(
         source_path=str(video),
-        duration_sec=round(min(float(info["format"]["duration"]), media.MAX_SEC or float("inf")), 3),
+        duration_sec=round(min(float(info["format"]["duration"]), media.START_SEC + (media.MAX_SEC or float("inf"))), 3),
         video=VideoInfo(codec=vs["codec_name"], width=int(vs["width"]), height=int(vs["height"]),
                         fps=round(fps, 3), vfr=is_vfr(video, fps)),
         audio=audio,
         audio_file=audio_file,
+        range_start_sec=media.START_SEC,
     )
     return save_stage(work_dir, "preprocess", result, p)

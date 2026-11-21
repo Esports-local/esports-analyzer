@@ -27,6 +27,7 @@ import numpy as np
 from PIL import Image
 
 from pipeline.io import save_stage
+from pipeline import media
 from pipeline.media import iter_frames
 from pipeline.screen.layout import resolve
 from pipeline.schema import OcrRun, RoiOcrResult
@@ -65,7 +66,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
     frames = calls = 0
     for i, frame in enumerate(iter_frames(video, width, height, p["sample_fps"], p["crop"])):
-        t = i * step
+        t = media.START_SEC + i * step
         frames += 1
         gray = np.asarray(Image.fromarray(frame).convert("L"), np.int16)
         for roi in rois:
@@ -82,7 +83,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
                 log.info("roi_ocr: %s/%s 확정 %r (%.1f초)", roi.tag, roi.slot, roi.last_read.text, t)
     for roi in rois:
         if roi.locked:
-            roi.extend_to(frames * step)
+            roi.extend_to(media.START_SEC + frames * step)
     runs = sorted((r for roi in rois for r in roi.finish()), key=lambda r: (r.start_sec, r.tag, r.slot))
     log.info("roi_ocr: 프레임 %d장, 영역 %d개, OCR %d회 (재사용 %d회), 구간 %d개",
              frames, len(rois), calls, frames * len(rois) - calls, len(runs))

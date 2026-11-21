@@ -17,6 +17,8 @@
 출력: work/asr.json
 """
 
+import json
+import logging
 import os
 import wave
 from collections import Counter
@@ -24,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pipeline.io import load_stage, save_stage
+from pipeline.io import load_stage, save_stage, stage_path
 from pipeline.schema import AsrResult, Line, PreprocessResult
 
 DEFAULT_PARAMS = {
@@ -42,6 +44,9 @@ DEFAULT_PARAMS = {
     "diarization": "none",  # none / pyannote
     "merge_gap_sec": 1.0,  # 같은 화자 단어 사이가 이 이하면 같은 줄
     "max_line_sec": 30.0,  # 한 줄이 이보다 길어지면 끊는다
+    "terms": True,         # header 단어로 고유명사 교정 (pipeline/audio/terms.py). header 가 없으면 건너뜀
+    "terms_extra": [],     # 교정 사전에 더할 이름 [{text, kind(player|team), slot}] (api 의 선수 한국어 이름표)
+    "terms_min_score": 0.78,
 }
 
 
@@ -73,8 +78,30 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         lines = lines_from_words(segments, turns, p["merge_gap_sec"], p["max_line_sec"])
     else:
         lines = lines_from_segments(segments)
+    if pre.range_start_sec:  # 일부 구간만 뽑은 audio.wav → 원본 시각으로
+        off = pre.range_start_sec
+        lines = [ln.model_copy(update={"start_sec": round(ln.start_sec + off, 3), "end_sec": round(ln.end_sec + off, 3)})
+                 for ln in lines]
+    if p["terms"]:
+        lines = fix_terms(work_dir, lines, p)
     return save_stage(work_dir, "asr", AsrResult(lines=lines), p)
 
+
+def fix_terms(work_dir: Path, lines: list[Line], p: dict) -> list[Line]:
+    """header 단어(챔피언·스킬·밴 + terms_extra)로 고유명사를 고친다. 원문은 raw, 바꾼 내역은 fixes."""
+    from pipeline.audio.terms import build_terms, correct_lines
+
+    path = stage_path(work_dir, "header")
+    header = json.loads(path.read_text(encoding="utf-8")).get("result") if path.exists() else None
+    if not header or header.get("error"):
+        log.info("asr: header 가 없어 고유명사 교정을 건너뜀")
+        return lines
+    fixed = correct_lines([ln.model_dump() for ln in lines], build_terms(header, p["terms_extra"]), p["terms_min_score"])
+    log.info("asr: 고유명사 교정 %d곳", sum(len(ln.get("fixes", [])) for ln in fixed))
+    return [Line(**ln) for ln in fixed]
+
+
+log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 

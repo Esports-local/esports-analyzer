@@ -28,7 +28,8 @@ def main():
     parser.add_argument("--from", dest="start", choices=STAGES)
     parser.add_argument("--until", choices=STAGES)
     parser.add_argument("--only", help="쉼표로 구분한 단계 목록 (예: preprocess,asr)")
-    parser.add_argument("--max-sec", type=float, help="앞 몇 초만 분석 (예: 300). 결과는 <영상명>_first300s/ 에 따로")
+    parser.add_argument("--start-sec", type=float, help="이 초부터 분석 (예: 900). 결과 시각은 원본 기준")
+    parser.add_argument("--max-sec", type=float, help="몇 초만 분석 (예: 300). 결과는 <영상명>_<시작>-<끝>s/ 에 따로")
     parser.add_argument("--set", action="append", default=[], metavar="STAGE.KEY=VALUE",
                         help='단계 설정 덮어쓰기. 값은 JSON 으로 읽고 안 되면 문자열 (예: header.match=32655)')
     args = parser.parse_args()
@@ -37,7 +38,8 @@ def main():
     stages = [s.strip() for s in args.only.split(",") if s.strip()] if args.only else None
     try:
         run_pipeline(args.video, args.work_dir, stages=stages, start=args.start, until=args.until,
-                     params=parse_sets(args.set), max_sec=args.max_sec)
+                     params=parse_sets(args.set), max_sec=args.max_sec,
+                     start_sec=args.start_sec)
     except ValueError as e:
         parser.error(str(e))
 
