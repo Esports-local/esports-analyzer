@@ -54,16 +54,15 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 |---|---|---|
 | header | 경기 기본 정보 (op.gg + Data Dragon, 영상 안 읽음, `match`·`set` 설정) → `work/header.json` | 완료 |
 | preprocess | 영상 정보, VFR 점검, 16kHz wav | 완료 |
-| segments | 화면 전환 검출 (TransNetV2) | 완료 (보조) |
-| hls | 재생용 ts | 완료 |
+| segments | 장면 전환 (cut · dissolve · wipe, TransNetV2) + 화면 종류 (live · replay · postgame · break) + 경기 구간 | LCK 규칙 완료 |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만) → 같은 값이 이어진 구간 | 완료 (실제 영상 확인) |
 | asr | faster-whisper (Silero VAD) → 대사 | 완료 (실제 영상 확인) |
-| translate | 조건별 번역 (Gemini). 사람이 고친 대사로 번역 (`text_overrides`) | 코드만 남김 (ui·api 에서 안 씀) |
+| translate | 조건별 번역 (Gemini) | 지움 (git 기록) |
 | evaluate | 고유명사 오역 판정, 조건별 집계 | 예정 |
 
-### ROI 설정 (`configs/lol/worlds_2026.json`)
-영역 하나에 `tag`, `slot`, `kind`, `ocr_roi` [x1, y1, x2, y2] (1920x1080 기준), `ocr_scale`, `allowed_text`,
-`validation` (`regex`, `min_confidence`), `lexicon`, `static`(경기 중 안 바뀌는 값: 5초 이어지면 확정).
+### 레이아웃 설정 (`configs/lol/<대회>.json`, 리그로 자동 선택 `configs/lol/layouts.json`)
+`rois`(roi_ocr 영역)와 `screens`(segments 화면 종류 규칙, LCK 만)를 한 파일에 둔다. 영역 하나에 `tag`, `slot`, `kind`, `ocr_roi` [x1, y1, x2, y2] (1920x1080 기준), `ocr_scale`, `char_map`, `allowed_text`,
+`validation` (`regex`, `min_confidence`), `static`(경기 중 안 바뀌는 값: 5초 이어지면 확정).
 템플릿 게이트는 쓰지 않는다. 리플레이·캠 화면은 검증(허용 문자·형식·신뢰도)에서 걸러진다.
 
 ### 결과 (`outputs/<영상명>/work/`)
@@ -95,9 +94,9 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 | dev-workflow | 세 레포에서 쓰는 Claude Code 플러그인 `esports-dev`(스킬 9개)와 스킬 선택 평가·설명 자동 개선·분류. 연구 주제와는 별개 |
 
 - ui → api 스펙: [스펙 시트 spec_sheet_lol](https://docs.google.com/spreadsheets/d/1ktzJNw1eFwdPfRUiwNkzmhVgz8ZyxqiYMk721m9E6C8)
-  - 1 `GET /games` · 2 `GET /games/{id}` · 3 `/screen` · 4 `/lines` · 5 `/analysis` · 8 `POST /games`(영상 등록 + 분석) · 9 `/analyze` · 10 `/cancel` · 11 `/estimate` · 12 `GET /sources` · 13 `POST /lines/{line_id}/review`(대사 검수: 고친 문장·O/X, 고친 문장으로 번역) · 14 `GET /games/{id}/events`(경기 이벤트 + 숏폼 기본 구간) · 15 `POST /games/{id}/shorts`(숏폼 만들기, 같은 요청은 기존 숏폼) · 16 `GET /games/{id}/shorts` · 17 `GET /shorts/{id}`(상태·재생 주소) (구현) · 6·7 `/cases` (평가 단계 후)
+  - 1 `GET /games` · 2 `GET /games/{id}` · 3 `/screen` · 4 `/lines` · 5 `/analysis` · 8 `POST /games`(영상 등록 + 분석) · 9 `/analyze` · 10 `/cancel` · 12 `GET /sources` · 13 `POST /lines/{line_id}/review`(대사 검수: 고친 문장·O/X, 고친 문장으로 번역) · 14 `GET /games/{id}/events`(경기 이벤트 + 숏폼 기본 구간) · 15 `POST /games/{id}/shorts`(숏폼 만들기, 같은 요청은 기존 숏폼) · 16 `GET /games/{id}/shorts` · 17 `GET /shorts/{id}`(상태·재생 주소) (구현) · 6·7 `/cases` (평가 단계 후)
   - `/skills` (스펙 시트 번호 없음): 스킬 사용 기록·선택 평가. ui `/skills/` 화면이 읽고, dev-workflow 의 훅·`evals/run.py`·`evals/worker.py`가 보낸다
-- api → analyzer (`api/*/schemas.py`): `GET /videos`(원본 영상, 1920x1080·소리 있는 것만 selectable) · `POST /jobs`(파이프라인 실행, 한 번에 하나) · `GET /jobs/{id}` · `POST /jobs/{id}/cancel` · `POST /estimate`(번역 입력 토큰, 20줄 표본) · `POST /shorts`(숏폼 렌더 접수, 다른 렌더가 돌고 있으면 줄 세움) · `GET /shorts/{key}`
+- api → analyzer (`api/*/schemas.py`): `GET /videos`(원본 영상, 1920x1080·소리 있는 것만 selectable) · `POST /jobs`(파이프라인 실행, 한 번에 하나) · `GET /jobs/{id}` · `POST /jobs/{id}/cancel` · `POST /shorts`(숏폼 렌더 접수, 다른 렌더가 돌고 있으면 줄 세움) · `GET /shorts/{key}`
   - api 는 세트 영상을 조회할 때 analyzer 작업 상태를 묻고, 끝났으면 결과 폴더(`outputs/<이름>/work/`)를 읽어 저장한다
   - 큐는 아직 없다. analyzer 컨테이너를 다시 띄우면 진행 중이던 작업 기록이 사라진다
   - 숏폼: api 가 key(입력 해시)를 정해 analyzer 에 렌더를 맡기고, 조회할 때 상태를 묻는다. 끝나면 analyzer 결과 폴더의 mp4(`outputs/<이름>/shorts/<key>.mp4`)를 MinIO `shorts/<key>.mp4`(공개 읽기)로 올린다. analyzer 를 다시 띄워 기록이 없으면(404) 같은 내용으로 다시 맡긴다
