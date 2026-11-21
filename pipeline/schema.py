@@ -168,7 +168,8 @@ class TimelineEvent(TimeSpan):
 
     id: int
     type: EventType
-    team: str                     # 진영 슬롯 (blue / red)
+    subtype: str | None = None    # objective: grubs · dragon:<종류> · elder · baron · herald · atakhan (화면에서 알 수 있을 때)
+    team: str | None              # 진영 슬롯 (blue / red), 모르면 None
     team_name: str | None = None  # 화면에서 읽은 팀 이름
     value_before: int
     value_after: int

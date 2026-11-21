@@ -53,3 +53,19 @@ class BuildTimelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BannerTest(unittest.TestCase):
+    def test_banner_objectives_and_dragon_team(self):
+        from pipeline.game.timeline import banner_events, banner_subtype
+
+        self.assertEqual([banner_subtype(t) for t in ("OCEAN DRAKE", "CHEMTECH DRAKE", "BARON NASHOR", "FANTASTEEL POSCO")],
+                         ["dragon:water", "dragon:chemtech", "baron", None])
+        runs = [{"tag": "dragon_icons", "slot": "blue", "start_sec": 0, "end_sec": 200, "text": "0.10"},
+                {"tag": "dragon_icons", "slot": "red", "start_sec": 0, "end_sec": 105, "text": "0.00"},
+                {"tag": "dragon_icons", "slot": "red", "start_sec": 105, "end_sec": 200, "text": "0.15"},
+                {"tag": "banner", "slot": "", "start_sec": 100, "end_sec": 103, "text": "OCEAN DRAKE"},
+                {"tag": "banner", "slot": "", "start_sec": 110, "end_sec": 112, "text": "OCEAN DRAKE"},  # 같은 배너 다시 → 하나
+                {"tag": "banner", "slot": "", "start_sec": 300, "end_sec": 303, "text": "BARON NASHOR"}]
+        ev = banner_events(runs, DEFAULT_PARAMS)
+        self.assertEqual([(e[1], e[2], e[6]) for e in ev], [("dragon:water", "red", 100), ("baron", None, 300)])

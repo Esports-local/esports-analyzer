@@ -21,3 +21,9 @@ class SkipSpansTest(unittest.TestCase):
             self.assertEqual((in_spans(spans, 15), in_spans(spans, 30)), (True, False))
             self.assertEqual(skip_spans(work, []), [])
             self.assertEqual(skip_spans(Path(tmp) / "없음", ["draft"]), [])
+            # 경기 구간(20~50) 안의 break 는 건너뛰지 않고, in_game 에 준 replay 만 건너뜀
+            segs2 = [{"start_sec": 0, "end_sec": 20, "kind": "draft"}, {"start_sec": 25, "end_sec": 30, "kind": "break"},
+                     {"start_sec": 30, "end_sec": 35, "kind": "replay"}]
+            (work / "work" / "segments.json").write_text(
+                json.dumps({"result": {"segments": segs2, "game": {"start_sec": 20, "end_sec": 50}}}), encoding="utf-8")
+            self.assertEqual(skip_spans(work, ["draft", "break", "replay"], ["replay"]), [(0, 20), (30, 35)])

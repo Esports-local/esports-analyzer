@@ -15,6 +15,11 @@ LLM 을 쓰지 않는다. roi_ocr 결과만으로 코드가 만들기 때문에 
 - 사이에 읽히지 않은 구간(리플레이, 캠 화면)이 있으면 그 사이 어딘가에서 일어났으므로
   start_sec(앞 값이 마지막으로 읽힌 때) ~ end_sec(새 값이 처음 읽힌 때)로 남긴다
 
+오브젝트 종류: 레이아웃의 obj_count 항목에 subtype 이 있으면 그것 (LCK 는 grubs).
+배너 (LCK): 점수판 아래 띠에 OCEAN DRAKE · BARON NASHOR 같은 글자가 뜨면 오브젝트 이벤트 (subtype dragon:water · baron …).
+같은 배너가 banner_merge_sec 안에 다시 읽히면 하나로. 용은 경기 시간 옆 용 아이콘(dragon_icons, 픽셀 비율)이
+배너 앞보다 뒤에 늘어난 진영이 가져간 팀. 바론·전령은 팀을 모르면 비워 둔다.
+
 선수 (킬만): 이벤트 앞뒤 kda_window 초 안에 KDA 의 K 가 오른 같은 진영 선수 = killer,
 D 가 오른 상대 진영 선수 = victims, A 가 오른 같은 진영 선수 = assists. KDA 를 못 읽었으면 비워 둔다.
 """
@@ -55,7 +60,12 @@ DEFAULT_PARAMS = {
     "max_jump": 3,        # 한 번에 이만큼 넘게 오르면 오독
     "kda_window": 3.0,    # 킬과 KDA 변화를 짝지을 앞뒤 초
     "line_window": 5.0,   # 이벤트 앞뒤로 붙일 대사 범위(초)
+    "banner_merge_sec": 30.0,  # 같은 오브젝트 배너를 하나로 묶을 범위
+    "icon_before_sec": 10.0,   # 용 아이콘 비교: 배너 이만큼 앞 값과
+    "icon_after_sec": 8.0,     # 배너 이만큼 뒤 값을 비교
 }
+DRAKES = {"OCEAN": "water", "INFERNAL": "fire", "MOUNTAIN": "earth", "CLOUD": "air", "HEXTECH": "hextech",
+          "CHEMTECH": "chemtech"}
 
 COUNTERS = {"team_kills": "kill", "towers": "tower", "obj_count": "objective"}
 OPPONENT = {"blue": "red", "red": "blue"}
@@ -77,16 +87,27 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
         FileNotFoundError: roi_ocr 를 아직 돌리지 않음.
     """
     p = {**DEFAULT_PARAMS, **(params or {})}
-    runs = json.loads(stage_path(work_dir, "roi_ocr").read_text(encoding="utf-8"))["result"]["runs"]
+    roi = json.loads(stage_path(work_dir, "roi_ocr").read_text(encoding="utf-8"))["result"]
     lines = _load_lines(work_dir)
-    result = build_timeline(runs, lines, p)
+    result = build_timeline(roi["runs"], lines, p, _subtypes(roi.get("layout")))
     log.info("[timeline] 이벤트 %d개 (%s)", len(result.events),
              ", ".join(f"{t} {sum(e.type == t for e in result.events)}" for t in COUNTERS.values()))
     return save_stage(work_dir, "timeline", result, p)
 
 
-def build_timeline(runs: list[dict], lines: list[dict], p: dict) -> TimelineResult:
-    """roi_ocr 구간과 대사로 이벤트 목록을 만든다 (파일 입출력 없음, 테스트용)."""
+def _subtypes(layout: str | None) -> dict:
+    """레이아웃의 카운터 영역 오브젝트 종류 {tag: subtype} (예: LCK obj_count → grubs)."""
+    if not layout or not Path(layout).exists():
+        return {}
+    rois = json.loads(Path(layout).read_text(encoding="utf-8")).get("rois", [])
+    return {r["tag"]: r["subtype"] for r in rois if r.get("subtype")}
+
+
+def build_timeline(runs: list[dict], lines: list[dict], p: dict, subtypes: dict | None = None) -> TimelineResult:
+    """roi_ocr 구간과 대사로 이벤트 목록을 만든다 (파일 입출력 없음, 테스트용).
+
+    subtypes: {tag: subtype} 카운터 영역의 오브젝트 종류 (레이아웃 obj_count.subtype).
+    """
     statics = static_values(runs)
     teams = statics.get("team", {})
     players = statics.get("player_name", {})
@@ -94,14 +115,16 @@ def build_timeline(runs: list[dict], lines: list[dict], p: dict) -> TimelineResu
     for tag, etype in COUNTERS.items():
         for slot in ("blue", "red"):
             series = [r for r in runs if r["tag"] == tag and r["slot"] == slot]
-            raw += [(etype, slot, *step) for step in counter_steps(series, p["min_samples"], p["max_jump"])]
-    raw.sort(key=lambda x: (x[4], x[1]))  # end_sec(새 값이 읽힌 때), 진영
+            raw += [(etype, (subtypes or {}).get(tag), slot, *step)
+                    for step in counter_steps(series, p["min_samples"], p["max_jump"])]
+    raw += banner_events(runs, p)
+    raw.sort(key=lambda x: (x[5], x[2] or ""))  # end_sec(새 값이 읽힌 때), 진영
 
     kda = _kda_series(runs, p["min_samples"])
     events = []
-    for i, (etype, slot, before, after, start, end, evidence) in enumerate(raw, 1):
+    for i, (etype, subtype, slot, before, after, start, end, evidence) in enumerate(raw, 1):
         ev = TimelineEvent(
-            id=i, type=etype, team=slot, team_name=teams.get(slot),
+            id=i, type=etype, subtype=subtype, team=slot, team_name=teams.get(slot) if slot else None,
             start_sec=start, end_sec=end, value_before=before, value_after=after,
             game_time=_game_time_at(runs, end, p["min_samples"]), evidence=evidence,
         )
@@ -111,6 +134,57 @@ def build_timeline(runs: list[dict], lines: list[dict], p: dict) -> TimelineResu
                        if ln["end_sec"] >= start - p["line_window"] and ln["start_sec"] <= end + p["line_window"]]
         events.append(ev)
     return TimelineResult(events=events, teams=teams, players=players)
+
+
+def banner_subtype(text: str) -> str | None:
+    """배너 글자 → 오브젝트 종류. 모르면 None."""
+    t = text.upper().replace(" ", "")
+    if "ELDER" in t:
+        return "elder"
+    if "BARON" in t:
+        return "baron"
+    if "HERALD" in t:
+        return "herald"
+    if "ATAKHAN" in t:
+        return "atakhan"
+    if "DRAKE" in t or "DRAGON" in t:
+        return next((f"dragon:{v}" for k, v in DRAKES.items() if k in t), "dragon")
+    return None
+
+
+def _value_at(series: list[dict], t: float) -> float | None:
+    """t 에 보이던 값 (그 시각 run, 없으면 그 앞 마지막 run)."""
+    val = None
+    for r in series:
+        if r["start_sec"] <= t:
+            val = float(r["text"])
+        else:
+            break
+    return val
+
+
+def banner_events(runs: list[dict], p: dict) -> list[tuple]:
+    """배너 run → (objective, subtype, 팀, 0, 1, start, end, evidence). 용 팀은 용 아이콘 픽셀 비율이 늘어난 진영."""
+    banners = sorted((r for r in runs if r["tag"] == "banner" and banner_subtype(r["text"])), key=lambda r: r["start_sec"])
+    icons = {s: sorted((r for r in runs if r["tag"] == "dragon_icons" and r["slot"] == s), key=lambda r: r["start_sec"])
+             for s in ("blue", "red")}
+    out, last = [], {}
+    for r in banners:
+        sub = banner_subtype(r["text"])
+        kind = sub.split(":")[0]
+        if kind in last and r["start_sec"] - last[kind] <= p["banner_merge_sec"]:
+            last[kind] = r["start_sec"]
+            continue
+        last[kind] = r["start_sec"]
+        t = r["start_sec"]
+        team = None
+        if kind in ("dragon", "elder"):
+            delta = {s: (_value_at(icons[s], t + p["icon_after_sec"]) or 0) - (_value_at(icons[s], t - p["icon_before_sec"]) or 0)
+                     for s in icons if icons[s]}
+            if delta and max(delta.values()) >= 0.05:
+                team = max(delta, key=delta.get)
+        out.append(("objective", sub, team, 0, 1, t - p["icon_before_sec"], t, [f"banner {r['text']!r} @{t}"]))
+    return out
 
 
 def counter_steps(series: list[dict], min_samples: int, max_jump: int) -> list[tuple]:

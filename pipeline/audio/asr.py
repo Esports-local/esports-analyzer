@@ -44,7 +44,8 @@ DEFAULT_PARAMS = {
     "diarization": "none",  # none / pyannote
     "merge_gap_sec": 1.0,  # 같은 화자 단어 사이가 이 이하면 같은 줄
     "max_line_sec": 30.0,  # 한 줄이 이보다 길어지면 끊는다
-    # segments 구간 종류가 이 중 하나면 받아 적지 않는다 (밴픽·카운트다운 뮤직비디오·쉬는 시간). 그 구간 소리를 0 으로
+    # segments 구간 종류가 이 중 하나면 받아 적지 않는다 (밴픽·카운트다운 뮤직비디오·쉬는 시간). 그 구간 소리를 0 으로.
+    # 경기 구간 안은 건너뛰지 않는다 (경기 중 캠 장면에도 해설이 있다)
     "skip_kinds": ["draft", "countdown", "break"],
     "terms": True,         # header 단어로 고유명사 교정 (pipeline/audio/terms.py). header 가 없으면 건너뜀
     "terms_extra": [],     # 교정 사전에 더할 이름 [{text, kind(player|team), slot}] (api 의 선수 한국어 이름표)

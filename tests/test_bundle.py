@@ -27,11 +27,11 @@ class BundleTest(unittest.TestCase):
                              {"id": 2, "start_sec": 20, "end_sec": 50, "kind": "live", "transition_in": "cut", "game_time": ["00:00", "00:30"]},
                              {"id": 3, "start_sec": 50.5, "end_sec": 70, "kind": "replay", "transition_in": "wipe"},
                              {"id": 4, "start_sec": 95, "end_sec": 100, "kind": "countdown"}],
-                "events": [{"id": 1, "t": 30, "type": "kill"}, {"id": 2, "t": 50.2, "type": "tower"}],
+                "events": [{"id": 1, "t": 30, "type": "kill", "team": "red"}, {"id": 2, "t": 50.2, "type": "tower", "team": "blue"}],
                 "signals": {"step_sec": 1.0, "start_sec": 0.0, "gold_diff": [None] * 40 + [500.0] * 61}})
             stage(work, "asr", {"lines": [{"id": 1, "start_sec": 25, "end_sec": 27, "text": "럼블", "raw": "런블", "fixes": [{}]}]})
             stage(work, "roi_ocr", {"runs": [{"tag": "team_kills", "slot": "red", "start_sec": 30, "end_sec": 60, "text": "1"}]})
-            stage(work, "opgg_timeline", {"kills": [{"t": 10.0}, {"t": 70.0}], "objectives": []})
+            stage(work, "opgg_timeline", {"kills": [{"t": 10.0, "side": "red"}, {"t": 70.0, "side": "red"}], "objectives": []})
             d = bundle.build(root)
         self.assertEqual([(p["fields"]["kind"], len(p["children"])) for p in d["segments"]],
                          [("draft", 1), ("game", 2), ("countdown", 1)])
@@ -40,5 +40,11 @@ class BundleTest(unittest.TestCase):
                          ([1, 2], []))  # 전환 구간(50~50.5)의 타워는 앞 컷
         self.assertEqual(live["fields"]["lines"], [{"id": 1, "from_sec": 25, "to_sec": 27, "text": "럼블", "raw": "런블", "fixes": [{}]}])
         self.assertEqual(live["fields"]["screen"], {"kills": {"red": 1}, "gold_diff": 500.0})
-        self.assertEqual([k["video_sec"] for k in d["reference"]["kills"]], [30.0, None])  # 경기 70초는 clock(경기 0~40초)에서 20초 넘게 벗어나 None
-        self.assertEqual((d["header"]["context"], d["raw"]["roi_ocr"]["runs"][0]["text"]), ({"match": {"league": "LCK"}}, "1"))
+        # op.gg 킬: 경기 10초 → 영상 30초 장면에 (우리 킬 이벤트 1번과 짝), 경기 70초는 clock 에서 20초 넘게 벗어나 밖으로
+        ref = live["fields"]["reference"]
+        self.assertEqual([(r["type"], r["video_sec"], r["matched_event"], r["diff_sec"]) for r in ref], [("kill", 30.0, 1, 0.0)])
+        self.assertNotIn("reference_outside", d)
+        self.assertNotIn("ocr", live["fields"])
+        self.assertEqual(live["fields"]["signals"]["gold_diff"][-1], 500.0)
+        self.assertEqual(d["header"]["context"], {"match": {"league": "LCK"}})
+        self.assertNotIn("run_log", d)

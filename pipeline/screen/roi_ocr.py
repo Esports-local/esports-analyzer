@@ -7,6 +7,8 @@
 - char_map: 글꼴 때문에 잘못 읽는 문자 바꾸기 (예: LCK 숫자 0 → {"o": "0", "O": "0"}). allowed_text 보다 먼저
 - allowed_text: 남길 문자 (그 밖의 문자는 지운다)
 - validation: regex(전체 일치), min_confidence. 통과하지 못하면 그 샘플은 "못 읽음"
+- measure: "fill" 이면 OCR 대신 영역 안 아이콘 픽셀(밝거나 색이 진한 것) 비율을 0.05 단위로 적는다
+  (용 아이콘처럼 글자가 아닌 것. 아이콘이 늘면 값이 오른다)
 - static: 경기 중 바뀌지 않는 값(선수 이름, 팀 등). 같은 값이 static_lock_sec 동안 이어지면 확정하고
   그 뒤로는 읽지 않는다. 결과는 확정한 구간 하나 (영상 끝까지)
 
@@ -44,6 +46,7 @@ DEFAULT_PARAMS = {
     "crop": None,             # [x, y, w, h] 원본 픽셀. 화면 녹화본처럼 중계 화면이 일부일 때 그 부분만 잘라 쓴다
     # segments 구간 종류가 이 중 하나면 OCR 하지 않는다 (점수판이 없거나 가려진 화면). segments 가 없으면 전부 읽음
     "skip_kinds": ["replay", "postgame", "draft", "countdown", "break"],
+    "skip_in_game": ["replay"],  # 경기 구간 안에서는 이것만 건너뜀 (리플레이는 점수판이 가려짐)
 }
 
 
@@ -66,7 +69,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     reader = OcrReader()
     step = 1 / p["sample_fps"]
 
-    skip = skip_spans(work_dir, p["skip_kinds"])
+    skip = skip_spans(work_dir, p["skip_kinds"], p["skip_in_game"])
     frames = calls = skipped = 0
     for i, frame in enumerate(iter_frames(video, width, height, p["sample_fps"], p["crop"])):
         t = media.START_SEC + i * step
@@ -136,6 +139,7 @@ class Roi:
     regex: str | None = None
     min_conf: float = 0.0
     static: bool = False
+    measure: str | None = None
     locked: bool = False
     last_crop: np.ndarray | None = None
     last_read: Reading | None = None
@@ -156,11 +160,13 @@ class Roi:
         return cls(tag=c["tag"], slot=c.get("slot", ""), kind=c.get("kind"), box=tuple(box),
                    scale=int(c.get("ocr_scale", 1)), char_map=dict(c.get("char_map") or {}), allowed=c.get("allowed_text"), regex=v.get("regex"),
                    min_conf=float(v.get("min_confidence", 0.0)),
-                   static=bool(c.get("static", False)))
+                   static=bool(c.get("static", False)), measure=c.get("measure"))
 
     def read(self, frame: np.ndarray, reader: OcrReader) -> Reading:
-        """영역을 잘라 OCR 하고 정리·검증한다."""
+        """영역을 잘라 OCR 하고 정리·검증한다. measure=fill 이면 아이콘 픽셀 비율."""
         x1, y1, x2, y2 = self.box
+        if self.measure == "fill":
+            return Reading(raw="", text=f"{fill_ratio(frame[y1:y2, x1:x2]):.2f}", conf=1.0, valid=True)
         crop = Image.fromarray(frame[y1:y2, x1:x2])
         if self.scale > 1:
             crop = crop.resize((crop.width * self.scale, crop.height * self.scale), Image.LANCZOS)
@@ -215,3 +221,10 @@ class Roi:
                                     conf=round(sum(cur["confs"]) / len(cur["confs"]), 3),
                                     samples=len(cur["confs"])))
 
+
+def fill_ratio(crop: np.ndarray, step: float = 0.05) -> float:
+    """아이콘 픽셀 비율 (0.05 단위). 아이콘 = 밝은(V>170) 또는 색이 진한(S>90, V>110) 픽셀. 어두운 띠 배경은 빠진다."""
+    hsv = np.asarray(Image.fromarray(crop).convert("HSV"), np.int16)
+    s, v = hsv[..., 1], hsv[..., 2]
+    ratio = float(((v > 170) | ((s > 90) & (v > 110))).mean())
+    return round(round(ratio / step) * step, 2)

@@ -204,7 +204,7 @@ def build_events(timeline: dict | None, players: dict, segs: list[dict], p: dict
         pl = e.get("players") or {}
         killer = to_slots(pl.get("killer"))
         out.append({"id": e["id"], "t": e["end_sec"], "start_sec": e["start_sec"], "end_sec": e["end_sec"],
-                    "game_time": e.get("game_time"), "type": e["type"], "team": e["team"],
+                    "game_time": e.get("game_time"), "type": e["type"], "subtype": e.get("subtype"), "team": e["team"],
                     "killer": killer[0] if killer else None, "victims": to_slots(pl.get("victims")),
                     "assists": to_slots(pl.get("assists")), "tags": [], "segment": kind_at(segs, e["end_sec"]),
                     "line_ids": e.get("line_ids", []), "source": e.get("evidence", [])})
