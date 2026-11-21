@@ -5,10 +5,13 @@
 - 세트별 진영·선수·챔피언·밴·승자는 그 JSON 에 없고, 페이지가 뜬 뒤 op.gg 화면이 /matches/graphql 의
   GetGameByMatch(matchId, set) 로 불러온다. 같은 쿼리에서 필요한 필드만 골라 세트당 한 번 요청한다
   (op.gg 내부 API 는 이 하나만 쓴다).
+- 요청은 프로세스 안에서 1초에 한 번만 보낸다 (_throttle). 많이 보내면 op.gg 가 429 로 막는다.
 """
 
 import json
 import re
+import threading
+import time
 
 import httpx
 
@@ -26,7 +29,20 @@ GAME_QUERY = """query GetGameByMatch($matchId: ID!, $set: Int) {
     players { side position championId player { nickName } }
   }
 }"""
+MIN_INTERVAL = 1.0  # 초, op.gg 요청 사이 최소 간격
+_lock = threading.Lock()
+_last = 0.0
 ROLES = {"top": "top", "jun": "jungle", "mid": "mid", "adc": "bot", "sup": "support"}  # op.gg → 포지션 이름
+
+
+def _throttle() -> None:
+    """앞 요청에서 MIN_INTERVAL 초가 지날 때까지 기다린다 (스레드가 여럿이어도 한 줄로)."""
+    global _last
+    with _lock:
+        wait = _last + MIN_INTERVAL - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        _last = time.monotonic()
 
 
 def match_url(ref: str | int) -> str:
@@ -50,7 +66,9 @@ def fetch_match(ref: str | int) -> tuple[str, dict]:
         httpx.HTTPError: 요청 실패.
         ValueError: 페이지에 경기 데이터가 없음.
     """
-    res = httpx.get(match_url(ref), headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT, follow_redirects=True)
+    url = match_url(ref)
+    _throttle()
+    res = httpx.get(url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT, follow_redirects=True)
     res.raise_for_status()
     return str(res.url), parse_match(res.text)
 
@@ -83,6 +101,7 @@ def fetch_game(match_id: int | str, set_number: int) -> dict | None:
         httpx.HTTPError: 요청 실패.
         ValueError: GraphQL 오류 응답.
     """
+    _throttle()
     res = httpx.post(
         GRAPHQL_URL, timeout=TIMEOUT,
         headers={"User-Agent": USER_AGENT, "Referer": f"{BASE}/matches/{match_id}"},

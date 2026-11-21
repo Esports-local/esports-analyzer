@@ -80,3 +80,21 @@ class HeaderTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThrottleTest(unittest.TestCase):
+    def test_waits_between_requests(self):
+        clock = [100.0]
+        sleeps = []
+
+        def sleep(s):
+            sleeps.append(round(s, 3))
+            clock[0] += s
+
+        with mock.patch.object(opgg, "_last", 0.0), \
+                mock.patch.object(opgg.time, "monotonic", lambda: clock[0]), \
+                mock.patch.object(opgg.time, "sleep", sleep):
+            opgg._throttle()          # 첫 요청은 바로
+            clock[0] += 0.3
+            opgg._throttle()          # 0.3초 뒤 → 0.7초 기다림
+        self.assertEqual(sleeps, [0.7])
