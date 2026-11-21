@@ -41,7 +41,9 @@
   "rules": [
    {"kind": "replay", "why": "경기 중 리플레이(REPLAY)와 경기 뒤 하이라이트(HIGHLIGHT), 왼쪽 위 같은 자리", "roi": [50, 18, 390, 62], "contains": ["REPLAY", "HIGHLIGHT"], "value": "replay_label"},
    {"kind": "live", "why": "경기 화면, 상단 점수판 가운데 경기 시간", "roi": [922, 68, 990, 98], "scale": 3, "allowed": "0123456789:", "char_map": {"o": "0", "O": "0"}, "regex": "^\\d{1,2}:\\d{2}$", "value": "game_time"},
-   {"kind": "postgame", "why": "경기 끝난 뒤 통계 화면, 가운데 위 GAME TIME 글자", "roi": [880, 58, 1040, 82], "scale": 2, "contains": "GAMETIME", "read": {"game_length": {"roi": [860, 80, 1060, 132], "scale": 2, "allowed": "0123456789:", "char_map": {"o": "0", "O": "0"}, "regex": "^\\d{1,2}:\\d{2}$"}, "blue_result": {"roi": [640, 72, 800, 122], "scale": 2, "allowed": "WINLOS"}, "red_result": {"roi": [1130, 72, 1260, 122], "scale": 2, "allowed": "WINLOS"}}}
+   {"kind": "postgame", "why": "경기 끝난 뒤 통계 화면, 가운데 위 GAME TIME 글자", "roi": [880, 58, 1040, 82], "scale": 2, "contains": "GAMETIME", "read": {"game_length": {"roi": [860, 80, 1060, 132], "scale": 2, "allowed": "0123456789:", "char_map": {"o": "0", "O": "0"}, "regex": "^\\d{1,2}:\\d{2}$"}, "blue_result": {"roi": [640, 72, 800, 122], "scale": 2, "allowed": "WINLOS"}, "red_result": {"roi": [1130, 72, 1260, 122], "scale": 2, "allowed": "WINLOS"}}},
+   {"kind": "countdown", "why": "세트 사이 카운트다운 (뮤직비디오·광고와 같이 나옴), 위 가운데 큰 시계", "roi": [815, 20, 1100, 75], "scale": 2, "allowed": "0123456789:", "char_map": {"o": "0", "O": "0"}, "regex": "^\\d{1,2}:\\d{2}$", "value": "countdown"},
+   {"kind": "draft", "why": "밴픽, 아래 밴픽 막대 가운데 PATCH 26.xx", "roi": [890, 1042, 1025, 1070], "scale": 3, "contains": "PATCH"}
   ]
  }
 }

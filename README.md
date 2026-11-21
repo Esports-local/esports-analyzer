@@ -11,7 +11,7 @@ LoL 중계 영상에서 **경기 정보 · 화면 OCR · 해설 받아쓰기로 
 | 단계 | 내용 | 결과 |
 |---|---|---|
 | preprocess | 영상 정보, 16kHz wav | `work/preprocess.json`, `work/audio.wav` |
-| segments | 장면 전환 (cut · dissolve · wipe, TransNetV2) + 구간마다 화면 종류 (live · replay · postgame · break, LCK) + 경기 구간 | `work/segments.json` |
+| segments | 장면 전환 (cut · dissolve · wipe, TransNetV2) + 구간마다 화면 종류 (live · replay · postgame · countdown · draft · break, LCK) + 경기 구간 | `work/segments.json` |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만), 같은 값이 이어진 구간 | `work/roi_ocr.json` |
 | asr | faster-whisper (Silero VAD), 대사 | `work/asr.json` |
 | timeline | 화면 숫자(팀 킬·타워·오브젝트)가 오른 시점 → 경기 이벤트 (LLM 없음). 킬은 KDA 변화로 killer·victims·assists | `work/timeline.json` |

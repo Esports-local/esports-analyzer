@@ -54,7 +54,7 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 |---|---|---|
 | header | 경기 기본 정보 (op.gg + Data Dragon, 영상 안 읽음, `match`·`set` 설정) → `work/header.json` | 완료 |
 | preprocess | 영상 정보, VFR 점검, 16kHz wav | 완료 |
-| segments | 장면 전환 (cut · dissolve · wipe, TransNetV2) + 화면 종류 (live · replay · postgame · break) + 경기 구간 | LCK 규칙 완료 |
+| segments | 장면 전환 (cut · dissolve · wipe, TransNetV2) + 화면 종류 (live · replay · postgame · countdown · draft · break) + 경기 구간 | LCK 규칙 완료 |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만) → 같은 값이 이어진 구간 | 완료 (실제 영상 확인) |
 | asr | faster-whisper (Silero VAD) → 대사 | 완료 (실제 영상 확인) |
 | translate | 조건별 번역 (Gemini) | 지움 (git 기록) |

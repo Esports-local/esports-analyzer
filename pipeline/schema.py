@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = 1
 
-ScreenKind = Literal["live", "replay", "postgame", "break"]
+ScreenKind = Literal["live", "replay", "postgame", "countdown", "draft", "break"]
 TransitionKind = Literal["cut", "dissolve", "wipe"]  # dissolve: 서서히 겹침·페이드, wipe: 한쪽부터 쓸고 지나감
 
 
@@ -98,7 +98,7 @@ class Segment(TimeSpan):
     id: int
     transition_in: int | None = None   # 앞쪽 전환 id (영상 시작이면 None)
     transition_out: int | None = None  # 뒤쪽 전환 id (영상 끝이면 None)
-    kind: ScreenKind | None = None   # live 경기 · replay 리플레이·하이라이트 · postgame 경기 뒤 통계 · break 그 밖 (screens 규칙 있을 때)
+    kind: ScreenKind | None = None   # live 경기 · replay 리플레이·하이라이트 · postgame 경기 뒤 통계 · countdown 세트 사이 · draft 밴픽 · break 그 밖 (screens 규칙 있을 때)
     game_start: str | None = None    # live 면 안에서 처음 읽은 경기 시간 "12:34"
     game_end: str | None = None      # live 면 안에서 마지막에 읽은 경기 시간
 
