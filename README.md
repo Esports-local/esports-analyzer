@@ -17,7 +17,7 @@ LoL 중계 영상에서 **경기 정보 · 화면 OCR · 해설 받아쓰기로 
 | timeline | 화면 숫자(팀 킬·타워·오브젝트)가 오른 시점 → 경기 이벤트 (LLM 없음). 킬은 KDA 변화로 killer·victims·assists | `work/timeline.json` |
 | evaluate | 고유명사 평가 | 예정 |
 
-숏폼(`pipeline/shorts.py`)은 단계가 아니라 요청마다 만든다: 고른 이벤트 구간 → 세로 720x1280 mp4 (스코어보드 띠 + 경기 화면 + 해설 자막) → `shorts/<key>.mp4`. 17초 숏폼 렌더 약 3초 (CPU).
+숏폼(`pipeline/shorts/render.py`)은 단계가 아니라 요청마다 만든다: 고른 이벤트 구간 → 세로 720x1280 mp4 (스코어보드 띠 + 경기 화면 + 해설 자막) → `shorts/<key>.mp4`. 17초 숏폼 렌더 약 3초 (CPU).
 
 ROI 설정은 `configs/lol/worlds_2026.json` (좌표는 1920x1080 기준).
 

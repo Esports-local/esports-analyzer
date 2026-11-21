@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from pipeline.segments import (DEFAULT_PARAMS, build_segments, classify, classify_gradual, find_transition_spans,
+from pipeline.screen.segments import (DEFAULT_PARAMS, build_segments, classify, classify_gradual, find_transition_spans,
                                merge_graphic_wipes)
 
 

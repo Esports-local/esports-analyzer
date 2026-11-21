@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from api.shorts import views
 from app.main import app
-from pipeline.shorts import _ass_events, _ass_time, _check_segments
+from pipeline.shorts.render import _ass_events, _ass_time, _check_segments
 
 
 class RenderRulesTest(unittest.TestCase):

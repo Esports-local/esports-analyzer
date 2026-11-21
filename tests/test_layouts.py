@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pipeline.layouts import load, resolve
+from pipeline.screen.layout import load, resolve
 
 
 def write_header(work: Path, league: str | None, error: str | None = None):

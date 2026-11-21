@@ -2,7 +2,7 @@
 
 import unittest
 
-from pipeline.timeline import DEFAULT_PARAMS, build_timeline, counter_steps
+from pipeline.game.timeline import DEFAULT_PARAMS, build_timeline, counter_steps
 
 
 def run(tag, slot, start, end, text, samples=4):

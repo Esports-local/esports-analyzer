@@ -27,13 +27,14 @@ import numpy as np
 from PIL import Image
 
 from pipeline.io import save_stage
-from pipeline.layouts import resolve
+from pipeline.media import iter_frames
+from pipeline.screen.layout import resolve
 from pipeline.schema import OcrRun, RoiOcrResult
 
 log = logging.getLogger(__name__)
 
 DEFAULT_PARAMS = {
-    "layout": "auto",  # 설정 파일 경로, auto 면 header 리그로 고름 (pipeline/layouts.py, configs/lol/layouts.json)
+    "layout": "auto",  # 설정 파일 경로, auto 면 header 리그로 고름 (pipeline/screen/layout.py, configs/lol/layouts.json)
     "base_resolution": [1920, 1080],
     "sample_fps": 2.0,
     "change_threshold": 3.0,  # 영역 회색조 평균 차이(0~255)가 이 값 이상이면 다시 OCR
@@ -89,39 +90,6 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     result = RoiOcrResult(layout=str(layout), sample_fps=p["sample_fps"], base_resolution=(width, height),
                           rois=len(rois), frames=frames, ocr_calls=calls, runs=runs)
     return save_stage(work_dir, "roi_ocr", result, p)
-
-
-def iter_frames(video: Path, width: int, height: int, fps: float, crop: list[int] | None = None):
-    """영상을 fps 간격으로 한 장씩 읽는다 (CFR, width x height RGB).
-
-    crop [x, y, w, h] 가 있으면 원본에서 그 부분을 먼저 잘라 낸 뒤 크기를 맞춘다.
-
-    Yields:
-        (height, width, 3) uint8 배열. 프레임 i 의 시각은 i / fps.
-
-    Raises:
-        RuntimeError: ffmpeg 가 실패함.
-    """
-    vf = f"fps={fps!r},scale={width}:{height}"
-    if crop:
-        x, y, w, h = crop
-        vf = f"crop={w}:{h}:{x}:{y}," + vf
-    proc = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", str(video), "-an", "-vf", vf,
-         "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    size = width * height * 3
-    try:
-        while len(buf := proc.stdout.read(size)) == size:
-            yield np.frombuffer(buf, np.uint8).reshape(height, width, 3)
-        err = proc.stderr.read().decode(errors="replace")
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-        proc.wait()
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg 프레임 읽기 실패 ({proc.returncode}): {err.strip()}")
 
 
 class OcrReader:

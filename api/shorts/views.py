@@ -20,7 +20,7 @@ from fastapi import APIRouter, HTTPException
 
 from api.paths import OUTPUTS, video_path
 from api.shorts.schemas import ShortCreate, ShortState
-from pipeline.shorts import render
+from pipeline.shorts.render import render
 
 log = logging.getLogger(__name__)
 router = APIRouter()

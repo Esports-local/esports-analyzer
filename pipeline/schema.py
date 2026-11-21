@@ -184,7 +184,7 @@ class TimelineResult(BaseModel):
 # ---------------------------------------------------------------- header
 
 class HeaderResult(BaseModel):
-    """세트 영상의 경기 기본 정보 (pipeline/header.py). op.gg·Data Dragon 만으로 만든다. 받지 못하면 error 만 채운다."""
+    """세트 영상의 경기 기본 정보 (pipeline/header/). op.gg·Data Dragon 만으로 만든다. 받지 못하면 error 만 채운다."""
 
     match: dict = {}
     teams: dict = {}

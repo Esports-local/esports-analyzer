@@ -15,7 +15,7 @@
    (한쪽부터 쓸고 지나가는 전환, 중계 그래픽 전환 포함).
 4. 전환 사이가 segment. 두 cut 사이가 min_segment_sec 미만이면(플래시 등) 앞 cut 을 지워 합친다.
 5. 화면 종류 — 레이아웃 파일 screens 규칙이 있으면(지금은 LCK) sample_sec 마다 화면을 판별해
-   (pipeline/screen_kinds.py, 정해진 자리 글자 OCR) segment 마다 다수결로 kind 를 붙이고 경기 구간(game)을 정한다.
+   (pipeline/screen/rules.py, 정해진 자리 글자 OCR) segment 마다 다수결로 kind 를 붙이고 경기 구간(game)을 정한다.
 
 시간: 프레임 i 는 [i/fps, (i+1)/fps). fps 필터로 CFR 에 맞춰 읽으므로 VFR 영상도 시각이 맞다.
 """
@@ -28,8 +28,8 @@ from pathlib import Path
 import numpy as np
 
 from pipeline.io import save_stage
-from pipeline.layouts import load as load_layout
-from pipeline.layouts import resolve
+from pipeline.screen.layout import load as load_layout
+from pipeline.screen.layout import resolve
 from pipeline.media import fps_of, probe, read_frames, video_stream
 from pipeline.schema import Segment, SegmentsResult, Transition
 
@@ -83,8 +83,9 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
 def label_screens(video: Path, work_dir: Path, result: SegmentsResult, screens: dict) -> SegmentsResult:
     """sample_sec 마다 화면 종류를 판별해 segment 에 붙이고 경기 구간을 정한다."""
-    from pipeline.roi_ocr import OcrReader, iter_frames
-    from pipeline.screen_kinds import classify_frame, game_range, label_segments, load_rules
+    from pipeline.media import iter_frames
+    from pipeline.screen.roi_ocr import OcrReader
+    from pipeline.screen.rules import classify_frame, game_range, label_segments, load_rules
 
     rules, default, step = load_rules(screens)
     reader = OcrReader()

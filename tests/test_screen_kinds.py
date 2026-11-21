@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from pipeline.screen_kinds import _contains, classify_frame, game_range, label_segments, load_rules
+from pipeline.screen.rules import _contains, classify_frame, game_range, label_segments, load_rules
 
 CONFIG = {"sample_sec": 2, "default": "break", "rules": [
     {"kind": "replay", "roi": [0, 0, 10, 10], "contains": "HIGHLIGHT"},

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import httpx
 
-from pipeline import ddragon, opgg
+from pipeline.header import ddragon, opgg
 from pipeline.io import save_stage
 from pipeline.schema import HeaderResult
 

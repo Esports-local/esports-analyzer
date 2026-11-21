@@ -5,8 +5,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from pipeline import header, opgg
-from pipeline.ddragon import pick_version
+from pipeline import header
+from pipeline.header import opgg
+from pipeline.header.ddragon import pick_version
 
 BLG = {"id": "1", "name": "Bilibili Gaming", "acronym": "BLG"}
 T1 = {"id": "2", "name": "T1", "acronym": "T1"}
@@ -65,7 +66,7 @@ class HeaderTest(unittest.TestCase):
 
     def test_run_keeps_going_on_error(self):
         with tempfile.TemporaryDirectory() as tmp, \
-                mock.patch("pipeline.opgg.fetch_match", side_effect=ValueError("페이지에 경기 데이터가 없습니다")):
+                mock.patch("pipeline.header.opgg.fetch_match", side_effect=ValueError("페이지에 경기 데이터가 없습니다")):
             path = header.run(Path("x.mp4"), Path(tmp), {"match": 32706, "set": 2})
             self.assertIn("ValueError", path.read_text(encoding="utf-8"))
         with self.assertRaises(ValueError):

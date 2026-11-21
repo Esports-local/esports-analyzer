@@ -36,11 +36,11 @@ STAGES = [
 # 구현된 단계 → 모듈. 모듈마다 run(video, work_dir, params) 를 가진다
 IMPLEMENTED = {
     "header": "pipeline.header",
-    "preprocess": "pipeline.preprocess",
-    "segments": "pipeline.segments",
-    "roi_ocr": "pipeline.roi_ocr",
-    "asr": "pipeline.asr",
-    "timeline": "pipeline.timeline",
+    "preprocess": "pipeline.audio.preprocess",
+    "segments": "pipeline.screen.segments",
+    "roi_ocr": "pipeline.screen.roi_ocr",
+    "asr": "pipeline.audio.asr",
+    "timeline": "pipeline.game.timeline",
 }
 
 

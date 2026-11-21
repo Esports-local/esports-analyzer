@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
       - name: 문법 확인
         run: python -m compileall -q api app pipeline
-      - name: 서버 의존성만 설치 (requirements.txt 의 고정 버전)
-        run: pip install $(grep -E '^(fastapi|pydantic|httpx)==' requirements.txt)
+      - name: 서버 의존성 + numpy·pillow 설치 (requirements.txt 의 고정 버전)
+        run: pip install $(grep -E '^(fastapi|pydantic|httpx|numpy|pillow)==' requirements.txt)
       - name: 테스트
         run: python -m unittest discover -s tests -v

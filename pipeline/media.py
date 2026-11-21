@@ -154,3 +154,36 @@ def read_frame_at(video: Path, t: float, width: int, height: int) -> np.ndarray 
     if len(raw) != width * height * 3:
         return None
     return np.frombuffer(raw, np.uint8).reshape(height, width, 3)
+
+
+def iter_frames(video: Path, width: int, height: int, fps: float, crop: list[int] | None = None):
+    """영상을 fps 간격으로 한 장씩 읽는다 (CFR, width x height RGB).
+
+    crop [x, y, w, h] 가 있으면 원본에서 그 부분을 먼저 잘라 낸 뒤 크기를 맞춘다.
+
+    Yields:
+        (height, width, 3) uint8 배열. 프레임 i 의 시각은 i / fps.
+
+    Raises:
+        RuntimeError: ffmpeg 가 실패함.
+    """
+    vf = f"fps={fps!r},scale={width}:{height}"
+    if crop:
+        x, y, w, h = crop
+        vf = f"crop={w}:{h}:{x}:{y}," + vf
+    proc = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-i", str(video), "-an", "-vf", vf,
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    size = width * height * 3
+    try:
+        while len(buf := proc.stdout.read(size)) == size:
+            yield np.frombuffer(buf, np.uint8).reshape(height, width, 3)
+        err = proc.stderr.read().decode(errors="replace")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg 프레임 읽기 실패 ({proc.returncode}): {err.strip()}")
