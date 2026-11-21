@@ -17,8 +17,9 @@
 ## 구조
 - 테스트 `tests/` (HTTP 서버 스모크, 분석 단계는 안 돌림). CI: `.github/workflows/ci.yml` (푸시·PR 마다 문법 확인 + 테스트, torch 등 무거운 의존성은 설치 안 함)
 - `pipeline/stages.py`: 단계 목록과 `run_stage`, `run_pipeline` (코드에서 실행: `from pipeline import run_pipeline`). 각 단계는 `outputs/<영상명>/work/<stage>.json` 출력 → 중간부터 재실행 가능
-  - 단계: preprocess → segments → hls → roi_ocr → asr → translate → timeline → evaluate(예정)
+  - 단계: header → preprocess → segments → hls → roi_ocr → asr → translate(코드만 남김, ui·api 에서 안 씀) → timeline → evaluate(예정)
   - hls 는 `outputs/<영상명>/hls/` (master.m3u8, index.m3u8, seg_00001.ts …)
+- `pipeline/header.py`: 경기 기본 정보 `work/header.json` (영상 안 읽음, 설정 `match`(op.gg 경기 번호)·`set` 필요, api 가 영상 등록 때 넘김). `pipeline/opgg.py`(경기 페이지 `__NEXT_DATA__` + 세트 정보 `/matches/graphql` GetGameByMatch 하나, httpx)와 `pipeline/ddragon.py`(챔피언 번호 → 영어·한국어 이름·스킬, 경기 패치 버전)로만 만든다 (사람·LLM 입력 없음). 경기·팀·선수·챔피언·스킬·밴·세트 결과, 시리즈 스코어·앞 세트 밴픽·피어리스로 못 쓰는 챔피언(`FEARLESS_LEAGUES` 2025년 이후). op.gg 가 안 되면 `error`만 남기고 작업은 계속
 - `pipeline/roi_ocr.py`: 중계 화면 고정 영역 OCR (RapidOCR 글자 인식만). 설정은 `configs/<종목>/<레이아웃>.json`
   (`ocr_roi` [x1,y1,x2,y2] 1920x1080 기준, `allowed_text`, `validation`, `lexicon`, `static`), 사전은 `configs/<종목>/lexicon/<이름>.json`(선택, 지금은 팀 로고 글꼴 보정용 `teams.json`만).
   결과 `work/roi_ocr.json`: 영역(tag+slot)마다 같은 값이 이어진 구간. 화면이 그대로면 OCR 을 다시 돌리지 않는다

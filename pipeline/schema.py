@@ -200,3 +200,18 @@ class TimelineResult(BaseModel):
     events: list[TimelineEvent]
     teams: dict[str, str] = {}    # {진영: 팀 이름}
     players: dict[str, str] = {}  # {진영_포지션: 선수 이름}
+
+
+# ---------------------------------------------------------------- header
+
+class HeaderResult(BaseModel):
+    """세트 영상의 경기 기본 정보 (pipeline/header.py). op.gg·Data Dragon 만으로 만든다. 받지 못하면 error 만 채운다."""
+
+    match: dict = {}
+    teams: dict = {}
+    players: list[dict] = []
+    bans: dict = {}
+    result: dict = {}
+    series: dict = {}
+    source: dict = {}
+    error: str | None = None

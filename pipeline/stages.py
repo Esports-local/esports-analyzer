@@ -24,6 +24,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 STAGES = [
+    "header",      # 경기 기본 정보 (op.gg 경기·세트 + Data Dragon 챔피언·스킬, 피어리스). 영상 안 읽음, match·set 설정 필요
     "preprocess",  # ffprobe 메타데이터·VFR 점검 + 16kHz 모노 wav
     "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
     "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
@@ -36,6 +37,7 @@ STAGES = [
 
 # 구현된 단계 → 모듈. 모듈마다 run(video, work_dir, params) 를 가진다
 IMPLEMENTED = {
+    "header": "pipeline.header",
     "preprocess": "pipeline.preprocess",
     "segments": "pipeline.segments",
     "hls": "pipeline.hls",

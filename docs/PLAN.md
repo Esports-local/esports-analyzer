@@ -34,8 +34,10 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 - 영상: 중계 화면 녹화본 (OBS, 1920x1080 권장). **연구용으로 로컬에서만 쓰고 재배포하지 않는다** (`*.mp4`, `*.mov`, `data/`, `outputs/`는 git 제외)
   - 지금: Worlds 2026 4강 BLG vs T1 2세트 — 한국어 해설 17분, 영어 해설 10분
   - 영어 해설은 고유명사 표기 참고용 (문장 단위 대응 번역본은 아님)
-- 경기 정보: op.gg 경기 페이지(`esports.op.gg/matches/<번호>`)의 페이지 안 JSON. 경기·팀·스코어·세트 id·영상 링크 (api `import_match`)
-  - 세트별 진영·선수·챔피언·밴: op.gg 세트 정보(`/matches/graphql` GetGameByMatch, 경기 페이지 HTML에는 없음). 챔피언 번호 → 이름은 Riot Data Dragon. op.gg 로 못 받으면 화면 OCR 로 팀·선수만 채움
+- 경기 정보: analyzer `header` 단계가 만든다 (api 는 op.gg 를 부르지 않고 결과만 저장·제공)
+  - op.gg 경기 페이지(`esports.op.gg/matches/<번호>`)의 페이지 안 JSON: 경기·팀·스코어·세트 영상 링크
+  - 세트별 진영·선수·챔피언·밴·승자: op.gg 세트 정보(`/matches/graphql` GetGameByMatch, 경기 페이지 HTML에는 없음). 챔피언 번호 → 이름·스킬은 Riot Data Dragon
+  - 피어리스(LCK·LPL·MSI·Worlds, 2025년 이후): 앞 세트 픽은 이 세트에서 못 고르는 챔피언으로 헤더에 넣는다
 - 챔피언 한국어 ↔ 영어: Riot Data Dragon (`ko_KR` / `en_US`)
 
 ## 4. 파이프라인 (esports-analyzer)
@@ -50,12 +52,13 @@ e스포츠 중계를 **음성만으로 번역하면 선수명·팀명·챔피언
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
+| header | 경기 기본 정보 (op.gg + Data Dragon, 영상 안 읽음, `match`·`set` 설정) → `work/header.json` | 완료 |
 | preprocess | 영상 정보, VFR 점검, 16kHz wav | 완료 |
 | segments | 화면 전환 검출 (TransNetV2) | 완료 (보조) |
 | hls | 재생용 ts | 완료 |
 | roi_ocr | 고정 영역 OCR (RapidOCR 인식만) → 같은 값이 이어진 구간 | 완료 (실제 영상 확인) |
 | asr | faster-whisper (Silero VAD) → 대사 | 완료 (실제 영상 확인) |
-| translate | 조건별 번역 (Gemini). 사람이 고친 대사로 번역 (`text_overrides`) | 구현, 전체 실행 전 |
+| translate | 조건별 번역 (Gemini). 사람이 고친 대사로 번역 (`text_overrides`) | 코드만 남김 (ui·api 에서 안 씀) |
 | evaluate | 고유명사 오역 판정, 조건별 집계 | 예정 |
 
 ### ROI 설정 (`configs/lol/worlds_2026.json`)
