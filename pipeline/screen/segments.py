@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pipeline.io import save_stage
+from pipeline.io import save_stage, stage_path
 from pipeline.screen.layout import load as load_layout
 from pipeline.screen.layout import resolve
 from pipeline.media import fps_of, probe, read_frames, video_stream
@@ -101,7 +101,7 @@ def label_screens(video: Path, work_dir: Path, result: SegmentsResult, screens: 
 
 
 def _header(work_dir: Path) -> dict | None:
-    path = work_dir / "header.json"
+    path = stage_path(work_dir, "header")
     if not path.exists():
         return None
     result = json.loads(path.read_text(encoding="utf-8")).get("result") or {}

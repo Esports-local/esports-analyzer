@@ -7,6 +7,19 @@ from pathlib import Path
 
 import numpy as np
 
+# 앞부분만 분석 (run_pipeline(max_sec=...), CLI --max-sec). 설정하면 영상을 읽는 함수가 앞 MAX_SEC 초만 읽는다
+MAX_SEC: float | None = None
+
+
+def set_max_sec(sec: float | None) -> None:
+    global MAX_SEC
+    MAX_SEC = float(sec) if sec else None
+
+
+def input_args(video: Path) -> list[str]:
+    """ffmpeg 입력 인자. MAX_SEC 가 있으면 앞 MAX_SEC 초만 읽는다."""
+    return (["-t", f"{MAX_SEC:.3f}"] if MAX_SEC else []) + ["-i", str(video)]
+
 
 def probe(video: Path) -> dict:
     """ffprobe 로 영상의 포맷·스트림 정보를 읽는다.
@@ -88,7 +101,7 @@ def read_frames(video: Path, width: int, height: int, fps: float) -> np.ndarray:
         RuntimeError: ffmpeg 가 실패함.
     """
     proc = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", str(video), "-an",
+        ["ffmpeg", "-v", "error", *input_args(video), "-an",
          "-vf", f"fps={fps!r},scale={width}:{height}",
          "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -172,7 +185,7 @@ def iter_frames(video: Path, width: int, height: int, fps: float, crop: list[int
         x, y, w, h = crop
         vf = f"crop={w}:{h}:{x}:{y}," + vf
     proc = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", str(video), "-an", "-vf", vf,
+        ["ffmpeg", "-v", "error", *input_args(video), "-an", "-vf", vf,
          "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )

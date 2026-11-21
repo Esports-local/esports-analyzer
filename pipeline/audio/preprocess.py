@@ -9,7 +9,8 @@ import subprocess
 from pathlib import Path
 
 from pipeline.io import save_stage
-from pipeline.media import fps_of, is_vfr, probe, video_stream
+from pipeline import media
+from pipeline.media import fps_of, input_args, is_vfr, probe, video_stream
 from pipeline.schema import AudioFile, AudioInfo, PreprocessResult, VideoInfo
 
 DEFAULT_PARAMS = {"audio_sample_rate": 16000, "audio_channels": 1}
@@ -38,7 +39,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
                           channels=int(a_stream["channels"]))
         wav = work_dir / "work" / "audio.wav"
         wav.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-vn", "-map", "0:a:0",
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *input_args(video), "-vn", "-map", "0:a:0",
                         "-ac", str(p["audio_channels"]), "-ar", str(p["audio_sample_rate"]),
                         "-c:a", "pcm_s16le", str(wav)], check=True)
         audio_file = AudioFile(path=str(wav.relative_to(work_dir)), sample_rate=p["audio_sample_rate"],
@@ -46,7 +47,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
 
     result = PreprocessResult(
         source_path=str(video),
-        duration_sec=round(float(info["format"]["duration"]), 3),
+        duration_sec=round(min(float(info["format"]["duration"]), media.MAX_SEC or float("inf")), 3),
         video=VideoInfo(codec=vs["codec_name"], width=int(vs["width"]), height=int(vs["height"]),
                         fps=round(fps, 3), vfr=is_vfr(video, fps)),
         audio=audio,

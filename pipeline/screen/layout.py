@@ -17,6 +17,8 @@ from pathlib import Path
 
 import numpy as np
 
+from pipeline.io import stage_path
+
 log = logging.getLogger(__name__)
 
 LAYOUTS = Path("configs/lol/layouts.json")
@@ -25,7 +27,7 @@ AUTO = "auto"
 
 def header_league(work_dir: Path) -> str | None:
     """work/header.json 의 리그 이름. 없으면 None."""
-    path = work_dir / "header.json"
+    path = stage_path(work_dir, "header")
     if not path.exists():
         return None
     result = json.loads(path.read_text(encoding="utf-8")).get("result") or {}

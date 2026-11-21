@@ -10,7 +10,8 @@ from pipeline.screen.layout import load, resolve
 
 def write_header(work: Path, league: str | None, error: str | None = None):
     result = {"match": {"league": league} if league else {}, "error": error}
-    (work / "header.json").write_text(json.dumps({"result": result}), encoding="utf-8")
+    (work / "work").mkdir(exist_ok=True)
+    (work / "work" / "header.json").write_text(json.dumps({"result": result}), encoding="utf-8")
 
 
 class LayoutsTest(unittest.TestCase):

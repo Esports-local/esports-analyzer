@@ -26,7 +26,7 @@
 - `pipeline/audio/asr.py`: faster-whisper (Silero VAD 내장, 대사 단위 언어 감지). 해설 대사 → `work/asr.json`
 - `pipeline/game/timeline.py`: 화면 숫자(팀 킬·타워·오브젝트 수)가 오른 시점 → 경기 이벤트 `work/timeline.json` (LLM 없음). 잡음 정리(min_samples, 줄어든 값·급증 버림), 못 읽은 구간이 끼면 start_sec~end_sec 범위로, 킬은 앞뒤 3초 KDA 변화로 killer·victims·assists, 앞뒤 5초 대사 id
 - `pipeline/shorts/render.py`: 숏폼 렌더 (ffmpeg 한 번). 구간들 → 세로 720x1280 (흐린 배경 + 제목 + 스코어보드 띠 + 경기 화면 가운데 + 해설 자막 ASS, 한글 글꼴 fonts-nanum). 임시 파일에 쓰고 이름을 바꿔 결과로 만든다, 옆에 렌더 기록 .json
-- `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set header.match=32655`)
+- `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set header.match=32655`). `--max-sec 300`: 앞 300초만 분석(빠른 확인용), 결과는 `outputs/<영상명>_first300s/`에 따로 (header 도 그 폴더에 다시 만들어야 레이아웃 자동 선택이 된다)
 - `app/main.py`: FastAPI 앱. 엔드포인트 router 를 묶기만 한다 (`uvicorn app.main:app`)
 - `api/`: HTTP 엔드포인트. 엔드포인트마다 폴더 하나 (`views.py` router + `schemas.py` 요청·응답 모양 = 연동 스펙). 큐는 아직 없음
   - 공통: `views.py`(`GET /health`), `paths.py`(`VIDEOS_ROOT`·`OUTPUTS_ROOT` 절대 경로, 영상 경로 확인. 결과 폴더 이름은 요청한 파일 이름 기준이라 바로가기여도 api 의 work_name 과 같다)
