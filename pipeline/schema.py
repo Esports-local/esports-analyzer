@@ -213,3 +213,16 @@ class OpggTimelineResult(BaseModel):
     gold: dict = {}               # {진영: [[t, 골드], ...]} 1분마다
     totals: dict = {}             # {진영: {towers, inhibitors, dragons, elders, barons, heralds, atakhans}}
     error: str | None = None
+
+
+# ---------------------------------------------------------------- context (바디, pipeline/game/context.py)
+
+class ContextResult(BaseModel):
+    """영상 기준 경기 데이터 (바디). 사실만 담고, 하이라이트 판단은 숏폼 쪽에서 한다."""
+
+    game: dict = {}             # {start_sec, end_sec, length_sec, winner, checks}
+    players: dict = {}          # {슬롯: {team, name, champion, champion_en}}
+    clock: list[dict] = []      # [{start_sec, end_sec, game_start_sec}] 경기 시간이 흐르는 구간
+    segments: list[dict] = []   # [{id, start_sec, end_sec, kind, transition_in, game_time}]
+    events: list[dict] = []     # [{id, t, start_sec, end_sec, game_time, type, team, killer, victims, assists, tags, segment, line_ids, source}]
+    signals: dict = {}          # {step_sec, start_sec, loudness, gold_diff, cut_rate, kind}

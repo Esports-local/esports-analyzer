@@ -30,6 +30,7 @@ STAGES = [
     "roi_ocr",     # 중계 화면 고정 영역(선수·팀·KDA·골드·시간) OCR -> 값이 이어진 구간
     "asr",         # faster-whisper (내장 Silero VAD, word timestamps) -> 해설 대사 줄
     "timeline",    # 화면 숫자(팀 킬·타워·오브젝트) 변화 → 경기 이벤트 (숏폼 기준점), LLM 없음
+    "context",     # 바디: 영상 기준 경기 데이터 (시계·구간 종류·이벤트 태그·초 단위 신호), LLM 없음
     "evaluate",    # 고유명사 오역 판정·조건별 집계 — 예정
 ]
 
@@ -41,6 +42,7 @@ IMPLEMENTED = {
     "roi_ocr": "pipeline.screen.roi_ocr",
     "asr": "pipeline.audio.asr",
     "timeline": "pipeline.game.timeline",
+    "context": "pipeline.game.context",
 }
 
 
