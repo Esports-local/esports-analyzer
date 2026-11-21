@@ -20,7 +20,7 @@ class AppTest(unittest.TestCase):
 
     def test_openapi(self):
         paths = self.client.get("/openapi.json").json()["paths"]
-        for path in ("/videos", "/jobs", "/estimate", "/shorts"):
+        for path in ("/videos", "/jobs", "/shorts"):
             self.assertTrue(any(p.startswith(path) for p in paths), path)
 
 

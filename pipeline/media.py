@@ -136,23 +136,6 @@ def is_vfr(video: Path, fps: float, tolerance: float = 0.5) -> bool:
     return bool(np.any(np.abs(gaps - 1 / fps) > tolerance / fps))
 
 
-def frame_size(video: Path, height: int | None) -> tuple[int, int]:
-    """프레임을 읽을 크기를 정한다.
-
-    Args:
-        video: 영상 경로.
-        height: 원하는 높이. None 이면 원본 크기.
-
-    Returns:
-        (너비, 높이). 비율을 유지하고 너비는 짝수로 맞춘다.
-    """
-    v = video_stream(probe(video))
-    w, h = int(v["width"]), int(v["height"])
-    if height is None or height == h:
-        return (w, h)
-    return (round(w * height / h / 2) * 2, height)
-
-
 def read_frame_at(video: Path, t: float, width: int, height: int) -> np.ndarray | None:
     """시각 t 의 프레임 한 장을 읽는다.
 

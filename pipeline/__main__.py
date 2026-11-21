@@ -3,7 +3,7 @@
 docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/game.mp4 --until roi_ocr
 docker run --rm -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/game.mp4 --only preprocess,asr
 docker run --rm --env-file .env -v "$PWD":/app -v ~/vod-data:/data esports-analyzer python -m pipeline /data/game.mp4 \
-    --only translate --set translate.dry_run=true
+    --only header --set header.match=32655 --set header.set=1
 """
 
 import argparse
@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--until", choices=STAGES)
     parser.add_argument("--only", help="쉼표로 구분한 단계 목록 (예: preprocess,asr)")
     parser.add_argument("--set", action="append", default=[], metavar="STAGE.KEY=VALUE",
-                        help='단계 설정 덮어쓰기. 값은 JSON 으로 읽고 안 되면 문자열 (예: translate.conditions=["A","B","C"])')
+                        help='단계 설정 덮어쓰기. 값은 JSON 으로 읽고 안 되면 문자열 (예: header.match=32655)')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -42,7 +42,7 @@ def main():
 
 
 def parse_sets(items: list[str]) -> dict[str, dict]:
-    """["translate.max_lines=20", ...] → {"translate": {"max_lines": 20}}.
+    """["header.set=1", ...] → {"header": {"set": 1}}.
 
     Raises:
         ValueError: STAGE.KEY=VALUE 형식이 아님.

@@ -9,7 +9,7 @@
     run_pipeline("/data/game.mp4", start="segments", until="roi_ocr")  # 구간 (포함, 미구현 단계는 건너뜀)
     run_pipeline("/data/game.mp4", stages=["roi_ocr"], params={"roi_ocr": {"sample_fps": 1}})
 
-각 단계는 work_dir/work/<stage>.json 을 출력한다 (hls 는 hls/index.m3u8).
+각 단계는 work_dir/work/<stage>.json 을 출력한다.
 단계마다 걸린 시간과 프로세스 최대 메모리를 work/run_log.json 에 쌓는다.
 """
 
@@ -26,11 +26,9 @@ log = logging.getLogger(__name__)
 STAGES = [
     "header",      # 경기 기본 정보 (op.gg 경기·세트 + Data Dragon 챔피언·스킬, 피어리스). 영상 안 읽음, match·set 설정 필요
     "preprocess",  # ffprobe 메타데이터·VFR 점검 + 16kHz 모노 wav
-    "segments",    # 전환 검출 (cut/gradual + 암전) -> segment
-    "hls",         # 전환 경계 기준 ts(<=4초) 재인코딩
+    "segments",    # 화면 종류 (live · replay · postgame · break) 구간 + 경기 구간. 2초마다 정해진 자리 글자 OCR
     "roi_ocr",     # 중계 화면 고정 영역(선수·팀·KDA·골드·시간) OCR -> 값이 이어진 구간
     "asr",         # faster-whisper (내장 Silero VAD, word timestamps) -> 해설 대사 줄
-    "translate",   # 대사 번역 (조건 A 대사만 / B +화면 OCR / C +영상 프레임), Gemini
     "timeline",    # 화면 숫자(팀 킬·타워·오브젝트) 변화 → 경기 이벤트 (숏폼 기준점), LLM 없음
     "evaluate",    # 고유명사 오역 판정·조건별 집계 — 예정
 ]
@@ -40,10 +38,8 @@ IMPLEMENTED = {
     "header": "pipeline.header",
     "preprocess": "pipeline.preprocess",
     "segments": "pipeline.segments",
-    "hls": "pipeline.hls",
     "roi_ocr": "pipeline.roi_ocr",
     "asr": "pipeline.asr",
-    "translate": "pipeline.translate",
     "timeline": "pipeline.timeline",
 }
 
@@ -58,7 +54,7 @@ def run_stage(name: str, video: str | Path, work_dir: str | Path, params: dict |
         params: 그 단계의 DEFAULT_PARAMS 를 덮어쓸 설정.
 
     Returns:
-        저장된 단계 결과 파일 경로 (work/<stage>.json, hls 는 hls/index.m3u8).
+        저장된 단계 결과 파일 경로 (work/<stage>.json).
 
     Raises:
         ValueError: 알 수 없는 단계 이름.
@@ -83,7 +79,7 @@ def run_pipeline(
     """영상 하나에 대해 여러 단계를 STAGES 순서대로 실행한다.
 
     아직 구현하지 않은 단계는 경고만 남기고 건너뛴다. 단계끼리는 work/ 의 중간 결과로 이어지므로,
-    앞 단계를 이미 돌렸다면 뒤 단계만 골라 실행해도 된다 (예: hls 는 work/segments.json, asr 는 work/preprocess.json 이 필요).
+    앞 단계를 이미 돌렸다면 뒤 단계만 골라 실행해도 된다 (예: asr 는 work/preprocess.json, timeline 은 work/roi_ocr.json 이 필요).
 
     Args:
         video: 원본 영상 경로.

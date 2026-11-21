@@ -26,7 +26,27 @@ from pathlib import Path
 
 from pipeline.io import save_stage, stage_path
 from pipeline.schema import TimelineEvent, TimelineResult
-from pipeline.screen import static_values
+
+
+# 팀·선수 이름처럼 경기 내내 안 바뀌는 값은 화면에 가장 오래 떠 있던 값을 쓴다 (1장짜리 잡음은 밀린다)
+STATIC_TAGS = ("team", "player_name")
+
+
+def static_values(runs: list[dict]) -> dict[str, dict[str, str]]:
+    """{tag: {slot: 가장 오래 뜬 값}} (팀·선수 이름)."""
+    dur: dict[tuple, float] = {}
+    for r in runs:
+        if r["tag"] in STATIC_TAGS:
+            key = (r["tag"], r["slot"] or "value", r["text"])
+            dur[key] = dur.get(key, 0) + r["end_sec"] - r["start_sec"]
+    best: dict[tuple, tuple[str, float]] = {}
+    for (tag, slot, text), d in dur.items():
+        if d > best.get((tag, slot), ("", -1.0))[1]:
+            best[(tag, slot)] = (text, d)
+    out: dict[str, dict[str, str]] = {}
+    for (tag, slot), (text, _) in best.items():
+        out.setdefault(tag, {})[slot] = text
+    return out
 
 log = logging.getLogger(__name__)
 
