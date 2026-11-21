@@ -69,8 +69,33 @@ class HeaderTest(unittest.TestCase):
                 mock.patch("pipeline.header.opgg.fetch_match", side_effect=ValueError("페이지에 경기 데이터가 없습니다")):
             path = header.run(Path("x.mp4"), Path(tmp), {"match": 32706, "set": 2})
             self.assertIn("ValueError", path.read_text(encoding="utf-8"))
+            self.assertIn("ValueError", (path.parent / "opgg_timeline.json").read_text(encoding="utf-8"))
         with self.assertRaises(ValueError):
             header.run(Path("x.mp4"), Path("."), {})  # match·set 없음
+
+    def test_parse_timeline(self):
+        game = {"detailedStats": True, "length": 2325,
+                "teams": [{"side": "blue", "team": {"id": "416"}, "towerKills": 3, "frames": [{"gold": 2500, "timestamp": 60016}]},
+                          {"side": "red", "team": {"id": "591"}, "towerKills": 9, "frames": []}],
+                "objectKills": [{"teamId": "591", "objectType": "BARON_NASHOR", "objectSubType": None, "timestamp": 1877622},
+                                {"teamId": "416", "objectType": "DRAGON", "objectSubType": "EARTH_DRAGON", "timestamp": 659064}],
+                "players": [{"side": "blue", "position": "jun", "frames": [{"position": {"x": 130, "y": 401}, "timestamp": 0}],
+                             "events": [{"type": "ELITE_MONSTER_KILL", "timestamp": 659064, "position": {"x": 9861, "y": 4415},
+                                         "monsterType": "DRAGON"},
+                                        {"type": "CHAMPION_KILL", "timestamp": 666323, "position": {"x": 10218, "y": 5639}}]},
+                            {"side": "red", "position": "jun", "frames": [],
+                             "events": [{"type": "ELITE_MONSTER_KILL", "timestamp": 1877400, "position": {"x": 5007, "y": 10471},
+                                         "monsterType": "BARON_NASHOR"}]}]}
+        t = opgg.parse_timeline(game)
+        self.assertEqual(t["objectives"], [
+            {"t": 659.064, "game_time": "10:59", "type": "dragon", "subtype": "earth", "side": "blue",
+             "killer": "blue_jungle", "position": {"x": 9861, "y": 4415}},
+            {"t": 1877.622, "game_time": "31:17", "type": "baron", "subtype": None, "side": "red",
+             "killer": "red_jungle", "position": {"x": 5007, "y": 10471}}])
+        self.assertEqual(t["kills"], [{"t": 666.323, "game_time": "11:06", "side": "blue", "killer": "blue_jungle",
+                                       "position": {"x": 10218, "y": 5639}}])
+        self.assertEqual((t["positions"]["blue_jungle"], t["gold"]["blue"], t["totals"]["red"]["towers"]),
+                         ([[0.0, 130, 401]], [[60.016, 2500]], 9))
 
     def test_pick_version(self):
         self.assertEqual(pick_version(["16.23.1", "16.22.1"], "16.22.1"), "16.22.1")

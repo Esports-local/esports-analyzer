@@ -194,3 +194,22 @@ class HeaderResult(BaseModel):
     series: dict = {}
     source: dict = {}
     error: str | None = None
+
+
+# ---------------------------------------------------------------- opgg_timeline (header 단계가 같이 만듦, 정답지)
+
+class OpggTimelineResult(BaseModel):
+    """op.gg 이 세트 기록 (pipeline/header/opgg.py parse_timeline). 시각은 경기 시각(초), 좌표는 맵 좌표.
+
+    바디(context)는 쓰지 않고, 바디를 검증하는 정답지로만 쓴다. 받지 못하면 error 만 채운다.
+    """
+
+    opgg_game_id: int | None = None
+    detailed: bool = False        # op.gg 상세 기록 여부 (false 면 아래 목록이 비어 있을 수 있음)
+    length_sec: float | None = None
+    objectives: list[dict] = []   # [{t, game_time, type, subtype, side, killer, position}]
+    kills: list[dict] = []        # [{t, game_time, side, killer, position}]
+    positions: dict = {}          # {슬롯: [[t, x, y], ...]} 1분마다
+    gold: dict = {}               # {진영: [[t, 골드], ...]} 1분마다
+    totals: dict = {}             # {진영: {towers, inhibitors, dragons, elders, barons, heralds, atakhans}}
+    error: str | None = None

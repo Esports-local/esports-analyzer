@@ -18,6 +18,10 @@ op.gg·Data Dragon 요청이 실패해도 분석 작업을 멈추지 않는다: 
     result:  {winner: blue|red|None, length_sec}  이 세트 결과
     series:  {score_before, previous: [{set, blue, red, winner, picks, bans}], fearless, fearless_unavailable}
     source:  {opgg, ddragon_version}
+
+같은 요청으로 work/opgg_timeline.json 도 만든다: 이 세트 기록 (오브젝트·킬·1분 위치·1분 골드, 경기 시각 기준).
+바디(context)는 이걸 쓰지 않고 화면·소리만으로 만든다. 마지막에 바디를 검증하는 정답지로 쓴다.
+op.gg 에 상세 기록이 없는 경기(detailedStats=false)는 detailed=false 와 빈 목록.
 """
 
 import logging
@@ -27,7 +31,7 @@ import httpx
 
 from pipeline.header import ddragon, opgg
 from pipeline.io import save_stage
-from pipeline.schema import HeaderResult
+from pipeline.schema import HeaderResult, OpggTimelineResult
 
 log = logging.getLogger(__name__)
 
@@ -48,28 +52,34 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     if not p["match"] or not p["set"]:
         raise ValueError("header 단계는 match(op.gg 경기 번호)와 set(세트 번호) 설정이 필요합니다")
     try:
-        result = build(p["match"], int(p["set"]))
-        log.info("[header] %s %s세트: 선수 %d명, 앞 세트 %d개", result.match.get("name"), p["set"],
-                 len(result.players), len(result.series.get("previous", [])))
+        result, timeline = build(p["match"], int(p["set"]))
+        log.info("[header] %s %s세트: 선수 %d명, 앞 세트 %d개 | 기록: 킬 %d, 오브젝트 %d", result.match.get("name"),
+                 p["set"], len(result.players), len(result.series.get("previous", [])),
+                 len(timeline.kills), len(timeline.objectives))
     except ERRORS as e:
         log.warning("[header] op.gg·Data Dragon 에서 가져오지 못했습니다: %r", e)
-        result = HeaderResult(error=f"{type(e).__name__}: {e}")
+        error = f"{type(e).__name__}: {e}"
+        result, timeline = HeaderResult(error=error), OpggTimelineResult(error=error)
+    save_stage(work_dir, "opgg_timeline", timeline, p)
     return save_stage(work_dir, "header", result, p)
 
 
-def build(match_ref: str | int, set_number: int) -> HeaderResult:
-    """op.gg·Data Dragon 에서 받아 헤더를 만든다. Raises: ERRORS 중 하나."""
+def build(match_ref: str | int, set_number: int) -> tuple[HeaderResult, OpggTimelineResult]:
+    """op.gg·Data Dragon 에서 받아 (헤더, 이 세트 기록) 을 만든다. Raises: ERRORS 중 하나."""
     url, match = opgg.fetch_match(match_ref)
-    games = {}
-    for n in range(1, set_number + 1):  # 이 세트와 앞 세트들 (피어리스·스코어)
-        g = opgg.fetch_game(match["id"], n)
+    games, timeline = {}, None
+    for n in range(1, set_number + 1):  # 이 세트와 앞 세트들 (피어리스·스코어). 이 세트만 기록 필드를 같이 받는다
+        g = opgg.fetch_game(match["id"], n, timeline=n == set_number)
         if g:
             games[n] = opgg.parse_game(g)
+            if n == set_number:
+                timeline = OpggTimelineResult(opgg_game_id=games[n]["opgg_game_id"], **opgg.parse_timeline(g))
     if set_number not in games:
         raise ValueError(f"op.gg 에 {set_number}세트 정보가 없습니다")
     version = ddragon.version_for(match.get("matchVersion") or "")
     champs = ddragon.champions(version)
-    return assemble(url, match, games, set_number, champs, lambda cid: ddragon.skills(version, cid), version)
+    header = assemble(url, match, games, set_number, champs, lambda cid: ddragon.skills(version, cid), version)
+    return header, timeline
 
 
 def is_fearless(league: str, year: int | None) -> bool:
