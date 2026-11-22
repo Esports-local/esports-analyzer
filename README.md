@@ -28,6 +28,7 @@ esports-api 가 부른다. 요청·응답 모양은 엔드포인트 폴더의 `s
 |---|---|---|---|
 | GET | `/health` | 상태, 단계 목록 | `api/views.py` |
 | GET | `/videos` | 원본 영상 목록 (1920x1080·소리 있는 것만 selectable) | `api/videos/` |
+| GET | `/videos/{name}/file` | 원본 영상 파일 (Range 요청, 브라우저 재생용) | `api/videos/` |
 | POST | `/jobs` | 분석 작업 시작 (한 번에 하나, 같은 job_id 를 다른 내용으로 보내면 409) | `api/jobs/` |
 | GET | `/jobs/{id}` | 작업 상태 (현재 단계, 경과 시간, 실패 시 에러) | `api/jobs/` |
 | POST | `/jobs/{id}/cancel` | 작업 중지 (ffmpeg 등 하위 프로세스까지) | `api/jobs/` |
