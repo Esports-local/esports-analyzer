@@ -145,8 +145,11 @@ def load_whisper(size: str, device: str, compute_type: str):
     """
     from faster_whisper import WhisperModel
 
-    if compute_type == "default":
-        compute_type = "int8" if device == "cpu" else "default"
+    if compute_type == "default":  # auto 도 GPU 가 없으면 cpu 다 (전에는 auto 일 때 float32 로 돌았다)
+        import ctranslate2
+
+        on_cpu = device == "cpu" or (device == "auto" and ctranslate2.get_cuda_device_count() == 0)
+        compute_type = "int8" if on_cpu else "default"
     return WhisperModel(size, device=device, compute_type=compute_type)
 
 
