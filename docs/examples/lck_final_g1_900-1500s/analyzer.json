@@ -6180,7 +6180,48 @@
       "kind": "replay",
       "transition_in": "cut",
       "game_time": null,
-      "events": [],
+      "events": [
+       {
+        "id": "opgg-13",
+        "t": 1373.593,
+        "game_time": "16:03",
+        "type": "objective",
+        "subtype": "herald",
+        "team": "blue",
+        "killer": "blue_jungle",
+        "killer_name": "Canyon",
+        "killer_champion": "바이",
+        "victims": [],
+        "assists": [],
+        "tags": [],
+        "source": [
+         "opgg"
+        ],
+        "filled": true,
+        "lines": [
+         {
+          "id": 168,
+          "from_sec": 1367.948,
+          "text": "그 사이에 젠지 같은 경우는 지금 바이공이 있는 상황이라"
+         },
+         {
+          "id": 169,
+          "from_sec": 1370.448,
+          "text": "이쪽에서에는 캐년이 두도권을 주장하는 거죠."
+         },
+         {
+          "id": 170,
+          "from_sec": 1373.608,
+          "text": "선 딜라잇입니다."
+         },
+         {
+          "id": 171,
+          "from_sec": 1375.288,
+          "text": "서로 대치 자체는 할 만했는데 그 과정에서 딜라잇이"
+         }
+        ]
+       }
+      ],
       "lines": [
        {
         "id": 170,
@@ -6272,7 +6313,8 @@
         "killer_champion": "바이",
         "video_sec": 1373.593,
         "matched_event": null,
-        "diff_sec": null
+        "diff_sec": null,
+        "filled_event": "opgg-13"
        }
       ],
       "signals": {
@@ -7697,5 +7739,5 @@
    ]
   }
  ],
- "created_at": "2026-11-21T16:48:34+00:00"
+ "created_at": "2026-11-22T05:57:08+00:00"
 }

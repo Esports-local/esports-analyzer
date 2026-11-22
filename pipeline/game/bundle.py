@@ -8,7 +8,8 @@ run_pipeline 이 끝날 때마다 <outputs>/<영상>/analyzer.json 을 다시 �
     (분석 범위 밖 op.gg 기록은 넣지 않는다, 전체는 work/opgg_timeline.json)}
 
 cut.fields: from_sec · to_sec · kind · transition_in · game_time
-    events     우리 분석 이벤트 (선수 이름·챔피언 붙임)
+    events     우리 분석 이벤트 (선수 이름·챔피언 붙임). 리플레이 중이라 화면으로 못 잡은 op.gg 기록은
+               source ["opgg"], filled: true 로 채운다 (검증 정확도에서 뺀다)
     lines      해설 대사 (교정 원문 raw · 내역 fixes)
     reference  op.gg 정답지: 킬·오브젝트(선수·챔피언·맵 구역·짝이 되는 우리 이벤트와 시각 차이), 1분 위치·골드
     signals    장면 길이만큼의 초 단위 소리 크기·골드 차이·컷 빈도 + 요약
@@ -81,6 +82,9 @@ def build(work_dir: Path) -> dict:
     _attach(nodes, list(lines.values()), "lines", lambda ln: ln["from_sec"])
     refs, _outside = _reference_items(ref, clock, players, events, start, end)
     _attach(nodes, refs, "reference", lambda r: r["video_sec"])
+    _attach(nodes, _fill_from_reference(refs, nodes, lines), "events", lambda e: e["t"])
+    for node in nodes:
+        node["fields"]["events"].sort(key=lambda e: e["t"])
     for node in nodes:
         f = node["fields"]
         f["signals"] = _signals(signals, f["from_sec"], f["to_sec"])
@@ -275,6 +279,31 @@ def _reference_items(ref: dict | None, clock: list[dict], players: dict, events:
             it["matched_event"], it["diff_sec"] = _match(it, events, kind) if v is not None else (None, None)
         (inside if v is not None and start <= v < end else outside).append(it)
     return inside, outside
+
+
+FILL_KINDS = ("replay",)  # 이 장면 종류에서 짝이 없는 op.gg 기록만 채운다 (경기 화면에서 놓친 건 놓침으로 남김)
+
+
+def _fill_from_reference(refs: list[dict], nodes: list[dict], lines: dict[int, dict]) -> list[dict]:
+    """짝이 없는 op.gg 킬·오브젝트 중 리플레이 장면(점수판이 안 보임)에 떨어진 것을 이벤트로 만든다."""
+    out = []
+    for i, r in enumerate(refs, 1):
+        if r["type"] == "minute" or r.get("matched_event") is not None:
+            continue
+        cut = next((n for n in reversed(nodes) if n["fields"]["from_sec"] <= r["video_sec"]), nodes[0])
+        if cut["fields"]["kind"] not in FILL_KINDS:
+            continue
+        t = r["video_sec"]
+        is_kill = r["type"] == "kill"
+        sub = None if is_kill else (f"dragon:{r['subtype']}" if r["type"] == "dragon" and r.get("subtype") else r["type"])
+        out.append({"id": f"opgg-{i}", "t": t, "game_time": r["game_time"], "type": "kill" if is_kill else "objective",
+                    "subtype": sub, "team": r.get("side"), "killer": r.get("killer"), "killer_name": r.get("killer_name"),
+                    "killer_champion": r.get("killer_champion"), "victims": [], "assists": [], "tags": [],
+                    "source": ["opgg"], "filled": True,
+                    "lines": [{k: v for k, v in ln.items() if k in ("id", "from_sec", "text")}
+                              for ln in lines.values() if ln["to_sec"] >= t - 5 and ln["from_sec"] <= t + 5]})
+        r["filled_event"] = out[-1]["id"]
+    return out
 
 
 def _signals(signals: dict, a: float, b: float) -> dict:
