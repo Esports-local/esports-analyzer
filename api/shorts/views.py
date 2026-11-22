@@ -112,7 +112,7 @@ def _work() -> None:
             spec = short.spec
         try:
             meta = render(video_path(spec.video), _out_path(spec),
-                          [s.model_dump() for s in spec.segments], [s.model_dump() for s in spec.subtitles], spec.title)
+                          [s.model_dump() for s in spec.segments], [s.model_dump() for s in spec.subtitles])
             result = ("succeeded", meta, None)
         except Exception as e:  # ffmpeg 실패, 파일 없음 등. 워커는 멈추지 않는다
             log.exception("숏폼 %s 렌더 실패", spec.key)

@@ -21,7 +21,7 @@ class ShortCreate(BaseModel):
     video: str                                     # VIDEOS_ROOT 기준 파일 이름
     segments: list[Span] = Field(min_length=1, max_length=5)  # 원본 기준, 시간순·겹치지 않게
     subtitles: list[Subtitle] = []                 # 원본 기준 대사 (api 가 검수로 고친 문장을 넣어 보냄)
-    title: str | None = None                       # 화면 위 제목
+    title: str | None = None                       # 숏폼 이름 (렌더 기록·목록용, 영상에는 그리지 않음)
 
 
 class ShortState(BaseModel):
