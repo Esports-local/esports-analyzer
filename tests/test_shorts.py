@@ -10,20 +10,10 @@ from fastapi.testclient import TestClient
 
 from api.shorts import views
 from app.main import app
-from pipeline.shorts.render import _ass_events, _ass_time, _check_segments
+from pipeline.shorts.render import _check_segments
 
 
 class RenderRulesTest(unittest.TestCase):
-    def test_subtitles_move_to_short_time(self):
-        segs = [(100.0, 110.0), (200.0, 205.0)]
-        subs = [
-            {"start_sec": 98, "end_sec": 101, "text": "걸친 대사"},     # 앞이 잘림 → 0~1초
-            {"start_sec": 150, "end_sec": 152, "text": "구간 밖"},       # 버림
-            {"start_sec": 201, "end_sec": 203, "text": "둘째 구간"},     # 10 + 1 ~ 10 + 3
-            {"start_sec": 109.9, "end_sec": 112, "text": "너무 짧음"},   # 구간 안이 0.1초 → 버림
-        ]
-        self.assertEqual(_ass_events(segs, subs), [(0.0, 1.0, "걸친 대사"), (11.0, 13.0, "둘째 구간")])
-
     def test_segments_checked(self):
         with self.assertRaises(ValueError):
             _check_segments([])
@@ -32,9 +22,6 @@ class RenderRulesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _check_segments([{"start_sec": 0, "end_sec": 121}])  # 너무 김
 
-    def test_ass_time(self):
-        self.assertEqual(_ass_time(3725.456), "1:02:05.46")
-
 
 class ShortsApiTest(unittest.TestCase):
     def setUp(self):
@@ -42,7 +29,7 @@ class ShortsApiTest(unittest.TestCase):
         views.QUEUE.clear()
         self.client = TestClient(app)
         self.body = {"key": "abc12345", "video": "game.mp4",
-                     "segments": [{"start_sec": 10, "end_sec": 20}], "subtitles": [], "title": "T1"}
+                     "segments": [{"start_sec": 10, "end_sec": 20}], "title": "T1"}
         patcher = mock.patch.object(views, "video_path", side_effect=lambda name: Path("/data") / name)
         patcher.start()
         self.addCleanup(patcher.stop)
