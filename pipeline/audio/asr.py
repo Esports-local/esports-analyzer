@@ -48,7 +48,7 @@ DEFAULT_PARAMS = {
     # 경기 구간 안은 건너뛰지 않는다 (경기 중 캠 장면에도 해설이 있다)
     "skip_kinds": ["draft", "countdown", "break"],
     "terms": True,         # header 단어로 고유명사 교정 (pipeline/audio/terms.py). header 가 없으면 건너뜀
-    "terms_extra": [],     # 교정 사전에 더할 이름 [{text, kind(player|team), slot}] (api 의 선수 한국어 이름표)
+    "terms_extra": [],     # 교정 사전에 더할 이름 [{text(한국어), kind(player|team), name?(영어)}] (api 의 선수·팀 이름 사전, name 으로 이 경기 것만 씀)
     "terms_min_score": 0.78,
 }
 

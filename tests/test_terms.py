@@ -45,3 +45,17 @@ class TermsTest(unittest.TestCase):
         self.assertEqual(jamo("럼블"), "ㄹㅓㅁㅂㅡㄹ")
         self.assertEqual((fit_particle("나피리", "이는"), fit_particle("럼블", "를"), fit_particle("갈리오", "은")),
                          ("는", "을", "는"))
+
+
+class ExtraFilterTest(unittest.TestCase):
+    def test_only_this_game_names_from_dictionary(self):
+        header = {"players": [{"side": "blue", "role": "bot", "name": "Ruler", "champion": {"ko": "루시안", "skills": {}}}],
+                  "teams": {"blue": {"name": "GEN"}, "red": {"name": "HLE"}}}
+        extra = [{"text": "룰러", "kind": "player", "name": "ruler"}, {"text": "페이커", "kind": "player", "name": "Faker"},
+                 {"text": "젠지", "kind": "team", "name": "GEN"}, {"text": "디플러스 기아", "kind": "team", "name": "DK"}]
+        terms = {t.text: t for t in build_terms(header, extra)}
+        self.assertIn("룰러", terms)
+        self.assertEqual(terms["룰러"].slot, "blue_bot")
+        self.assertNotIn("페이커", terms)        # 이 경기 선수가 아님
+        self.assertIn("젠지", terms)
+        self.assertNotIn("디플러스 기아", terms)

@@ -66,8 +66,7 @@ def build_terms(header: dict | None, extra: list[dict] | None = None) -> list[Te
         for skill in (champ.get("skills") or {}).values():
             if skill:
                 terms.append(Term(skill, "skill", 3, slot))
-    for e in extra or []:
-        terms.append(Term(e["text"], e.get("kind", "player"), 2, e.get("slot")))
+    terms += _extra_terms(h, extra or [])
     for side in (h.get("bans") or {}).values():
         terms += [Term(b["ko"], "champion", 3) for b in side if b.get("ko")]
     terms += [Term(c["ko"], "champion", 3) for c in (h.get("series") or {}).get("fearless_unavailable", []) if c.get("ko")]
@@ -76,6 +75,28 @@ def build_terms(header: dict | None, extra: list[dict] | None = None) -> list[Te
         if t.text not in seen and len(t.text.replace(" ", "")) >= 2:
             seen.add(t.text)
             out.append(t)
+    return out
+
+
+def _extra_terms(h: dict, extra: list[dict]) -> list[Term]:
+    """terms_extra [{text(한국어), kind(player|team), name?(영어), slot?}] → 사전 항목.
+
+    name 이 있으면 이 경기 header 의 선수·팀 이름과 맞는 것만 쓰고 slot 을 붙인다 (api 는 전체 사전을 보내므로
+    다른 경기 선수 이름으로 잘못 고치지 않게). name 이 없거나 header 에 선수 정보가 없으면 그대로 쓴다.
+    """
+    players = {(p.get("name") or "").lower(): f"{p['side']}_{p['role']}" for p in h.get("players", []) if p.get("name")}
+    teams = {((t or {}).get("name") or "").lower(): side for side, t in (h.get("teams") or {}).items()}
+    out = []
+    for e in extra:
+        name = (e.get("name") or "").lower()
+        kind = e.get("kind", "player")
+        known = players if kind == "player" else teams
+        if name and known:
+            if name not in known:
+                continue
+            out.append(Term(e["text"], kind, 2, known[name] if kind == "player" else None))
+        else:
+            out.append(Term(e["text"], kind, 2, e.get("slot")))
     return out
 
 
@@ -184,11 +205,18 @@ def correct_lines(lines: list[dict], terms: list[Term], min_score: float = DEFAU
 
 
 def main() -> None:
+    """python -m pipeline.audio.terms outputs/<영상>/work [terms_extra.json]
+    terms_extra 는 파일로 주거나, 없으면 asr.json 을 만들 때 쓴 설정(params.terms_extra)을 그대로 쓴다."""
     work = Path(sys.argv[1])
     asr_path = work / "asr.json"
     data = json.loads(asr_path.read_text(encoding="utf-8"))
     header = json.loads((work / "header.json").read_text(encoding="utf-8")).get("result")
-    terms = build_terms(header)
+    if len(sys.argv) > 2:
+        extra = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+        data.setdefault("params", {})["terms_extra"] = extra
+    else:
+        extra = (data.get("params") or {}).get("terms_extra") or []
+    terms = build_terms(header, extra)
     data["result"]["lines"] = correct_lines(data["result"]["lines"], terms)
     asr_path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     for ln in data["result"]["lines"]:
