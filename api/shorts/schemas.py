@@ -15,7 +15,7 @@ class Span(BaseModel):
 class ShortCreate(BaseModel):
     key: str = Field(pattern=r"^[a-z0-9-]{8,64}$")  # 결과 파일 이름. api 가 입력 해시로 정한다 (같은 입력 = 같은 key)
     video: str                                     # VIDEOS_ROOT 기준 파일 이름
-    segments: list[Span] = Field(min_length=1, max_length=5)  # 원본 기준, 시간순·겹치지 않게
+    segments: list[Span] = Field(min_length=1)  # 원본 기준, 시간순·겹치지 않게 (개수·길이 제한 없음)
     title: str | None = None                       # 숏폼 이름 (렌더 기록·목록용, 영상에는 그리지 않음)
 
 

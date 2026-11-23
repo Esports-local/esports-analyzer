@@ -19,8 +19,7 @@ class RenderRulesTest(unittest.TestCase):
             _check_segments([])
         with self.assertRaises(ValueError):
             _check_segments([{"start_sec": 10, "end_sec": 20}, {"start_sec": 15, "end_sec": 25}])  # 겹침
-        with self.assertRaises(ValueError):
-            _check_segments([{"start_sec": 0, "end_sec": 121}])  # 너무 김
+        self.assertEqual(len(_check_segments([{"start_sec": i * 10, "end_sec": i * 10 + 9} for i in range(20)])), 20)  # 제한 없음
 
 
 class ShortsApiTest(unittest.TestCase):

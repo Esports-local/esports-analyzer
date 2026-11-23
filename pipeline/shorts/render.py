@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 
 W, H = 720, 1280
 CROP = (656, 0, 608, 1080)        # x, y, w, h (1920x1080 기준): 가운데 9:16
-MAX_TOTAL_SEC = 120.0
 
 
 def render(video: Path, out_path: Path, segments: list[dict], crf: int = 23, preset: str = "veryfast") -> dict:
@@ -32,7 +31,7 @@ def render(video: Path, out_path: Path, segments: list[dict], crf: int = 23, pre
         렌더 기록 {duration_sec, render_sec, size_bytes, segments}.
 
     Raises:
-        ValueError: 구간이 비었거나 순서가 틀렸거나 너무 김.
+        ValueError: 구간이 비었거나 순서가 틀림. (길이·개수 제한은 없다, 11-23)
         RuntimeError: ffmpeg 실패 (마지막 로그 몇 줄 포함).
     """
     segs = _check_segments(segments)
@@ -62,8 +61,6 @@ def _check_segments(segments: list[dict]) -> list[tuple[float, float]]:
             raise ValueError(f"잘못된 구간: {s}~{e}")
         if nxt and nxt[0] < e:
             raise ValueError("구간은 시간순이고 겹치지 않아야 합니다")
-    if sum(e - s for s, e in segs) > MAX_TOTAL_SEC:
-        raise ValueError(f"숏폼은 {MAX_TOTAL_SEC:.0f}초 이하만 만듭니다")
     return segs
 
 
