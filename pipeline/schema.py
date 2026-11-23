@@ -253,8 +253,39 @@ class ShortCandidate(BaseModel):
     duration_sec: float
     events: list[dict] = []     # [{id, t, type, subtype, team, tags}]
     lines: list[str] = []       # 장면 안 해설 문장 (시간순)
+    # LLM 순위·제목·자를 위치를 코드가 검사한 최종값 (rank.py, 자세한 기록은 work/shorts_llm.json)
+    rank: int | None = None
+    title: str | None = None
+    titles: list[str] = []
+    reason: str = ""
+    clip_start_sec: float | None = None
+    clip_end_sec: float | None = None
+    source: str | None = None   # llm · llm+fixed · rule
+    warnings: list[str] = []
+
+
+class ShortClip(BaseModel):
+    """이벤트 하나의 클립 (모음형 숏폼 재료). 구간은 해설 소리 크기로 정한다 (scenes.event_clip)."""
+
+    event_id: int | str
+    t: float
+    game_time: str | None = None
+    type: str
+    subtype: str | None = None
+    team: str | None = None
+    killer: str | None = None    # 슬롯 (blue_bot …)
+    victims: list[str] = []
+    assists: list[str] = []
+    tags: list[str] = []
+    area: str | None = None
+    start_sec: float
+    end_sec: float
+    on_screen: str | None = None  # 이벤트 순간 화면 종류 (live · replay …)
+    scene: str | None = None      # 이 이벤트가 든 후보 장면 id (c1 …), 후보가 아니면 None
+    replay: dict | None = None    # 뒤따르는 리플레이 장면 {start_sec, end_sec, cuts}
 
 
 class ShortsResult(BaseModel):
     scenes: int = 0             # 묶은 장면 수 (후보가 아닌 것 포함)
     candidates: list[ShortCandidate] = []
+    clips: list[ShortClip] = []  # 이벤트별 클립 (킬·오브젝트·타워 전부, 시간순)

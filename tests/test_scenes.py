@@ -53,6 +53,23 @@ class ScenesTest(unittest.TestCase):
         d["header"] = {"game": {"start_sec": 30, "end_sec": 60}}
         self.assertEqual([c["cuts"] for c in candidates(d)], [["cut-2"]])
 
+    def test_clip_span_follows_loud_lines(self):
+        from pipeline.shorts.scenes import DEFAULT_PARAMS, clip_span
+        L = lambda a, b, loud: {"from_sec": a, "to_sec": b, "_loud": loud}
+        lines = [L(80, 85, 0.5), L(86, 92, 0.9), L(93, 99, 0.95), L(101, 104, 0.9), L(105, 109, 0.6)]
+        # 이벤트 100초: 앞은 0.85 이상 문장, 뒤는 104초까지 (0.6 문장 앞에서 멈춤)
+        self.assertEqual(clip_span(100, lines, 0, 200, DEFAULT_PARAMS), (93, 104))  # 86초 문장은 12초 앞(88)보다 일러서 안 넣음
+        # 장면 범위가 좁으면 그 안으로
+        self.assertEqual(clip_span(100, lines, 97, 103, DEFAULT_PARAMS), (97, 103))
+
+    def test_event_clips_with_replay(self):
+        from pipeline.shorts.scenes import event_clips
+        kill = {"id": 1, "t": 15, "type": "kill", "team": "red", "killer": "red_jungle"}
+        d = data(cut(1, 10, 20, events=[kill]), cut(2, 30, 40, kind="replay"))
+        clips = event_clips(d)
+        self.assertEqual((clips[0]["start_sec"], clips[0]["end_sec"], clips[0]["scene"]), (11, 18, "c1"))
+        self.assertEqual(clips[0]["replay"], {"start_sec": 30, "end_sec": 40, "cuts": ["cut-2"]})
+
     def test_run_writes_stage(self):
         with tempfile.TemporaryDirectory() as d:
             work = Path(d)
@@ -60,7 +77,7 @@ class ScenesTest(unittest.TestCase):
             (work / "work" / "context.json").write_text("{}", encoding="utf-8")
             tree = data(cut(1, 0, 10, events=[{"id": 1, "t": 5, "type": "kill"}]), cut(2, 10, 20))
             with mock.patch("pipeline.game.bundle.build", return_value=tree):
-                path = scenes.run(Path("game.mp4"), work)
+                path = scenes.run(Path("game.mp4"), work, {"use_llm": False})
             out = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(out["stage"], "shorts")
             self.assertEqual(out["result"]["scenes"], 2)

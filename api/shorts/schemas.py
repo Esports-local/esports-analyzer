@@ -19,6 +19,19 @@ class ShortCreate(BaseModel):
     title: str | None = None                       # 숏폼 이름 (렌더 기록·목록용, 영상에는 그리지 않음)
 
 
+class QueryRequest(BaseModel):
+    """모음형 숏폼 요청 글 → 조건 (POST /shorts/query)."""
+    text: str = Field(min_length=1, max_length=200)
+    players: dict[str, str]                        # {슬롯: "팀 이름 (챔피언)"} 이 경기 선수
+
+
+class QueryResult(BaseModel):
+    filter: dict[str, str] = {}   # {killer: 슬롯, type: kill|objective|tower, team: blue|red, tag: first_blood|multikill|teamfight}
+    title: str | None = None      # 10자 이내 제목 제안
+    note: str | None = None       # 조건으로 못 나타낸 부분
+    error: str | None = None      # LLM 을 못 썼으면 이유 (filter 는 비어 있음)
+
+
 class ShortState(BaseModel):
     key: str
     work_name: str                # outputs/<work_name>/shorts/<key>.mp4

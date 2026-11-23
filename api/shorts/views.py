@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from api.paths import OUTPUTS, video_path
-from api.shorts.schemas import ShortCreate, ShortState
+from api.shorts.schemas import QueryRequest, QueryResult, ShortCreate, ShortState
 from pipeline.shorts.render import render
 
 log = logging.getLogger(__name__)
@@ -74,6 +74,14 @@ def create_short(body: ShortCreate):
         _ensure_worker()
         _cond.notify()
         return _state(SHORTS[body.key])
+
+
+@router.post("/shorts/query", response_model=QueryResult)
+def query_short(body: QueryRequest):
+    """모음형 숏폼 요청 글 → 조건 (LLM, pipeline/shorts/query.py). LLM 을 못 쓰면 error 만 채운다 (200)."""
+    from pipeline.shorts import query
+
+    return QueryResult(**query.parse(body.text, body.players))
 
 
 @router.get("/shorts/{key}", response_model=ShortState)
