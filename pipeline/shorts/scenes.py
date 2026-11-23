@@ -55,7 +55,7 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     data = bundle.build(work_dir)
     scenes = group(cuts_of(data), p["cross_tol_sec"])
     cands = candidates(data, p["cross_tol_sec"])
-    clips = event_clips(data, p)
+    clips = event_clips(data, p, _load_ref(work_dir))
     cands = _with_llm(work_dir, data, cands, p)
     result = ShortsResult(scenes=len(scenes), candidates=[ShortCandidate(**c) for c in cands],
                           clips=[ShortClip(**c) for c in clips])
@@ -155,8 +155,30 @@ def is_live(info: dict, game: dict) -> bool:
     return info["start_sec"] < end and info["end_sec"] > start
 
 
-def event_clips(data: dict, p: dict | None = None) -> list[dict]:
-    """이벤트마다 해설 기준 클립 (시간순)."""
+def _load_ref(work_dir: Path) -> dict | None:
+    path = stage_path(work_dir, "opgg_timeline")
+    if not path.exists():
+        return None
+    ref = json.loads(path.read_text(encoding="utf-8")).get("result") or {}
+    return None if ref.get("error") else ref
+
+
+def kill_score(data: dict, ref: dict | None, t: float) -> dict | None:
+    """영상 t 초 킬 직후 팀 킬 점수. op.gg 킬을 경기 시각으로 누적 (분석 범위 앞 킬 포함). 없으면 None."""
+    from pipeline.game.bundle import game_time_at
+
+    g = game_time_at((data.get("header") or {}).get("clock") or [], t)
+    if not ref or not ref.get("kills") or g is None:
+        return None
+    score = {"blue": 0, "red": 0}
+    for k in ref["kills"]:
+        if k["t"] <= g + 0.5 and k.get("side") in score:
+            score[k["side"]] += 1
+    return score
+
+
+def event_clips(data: dict, p: dict | None = None, ref: dict | None = None) -> list[dict]:
+    """이벤트마다 해설 기준 클립 (시간순). ref(op.gg 기록)가 있으면 킬마다 직후 점수."""
     from pipeline.shorts.llm_input import _loud, _loud_samples
 
     p = {**DEFAULT_PARAMS, **(p or {})}
@@ -181,7 +203,8 @@ def event_clips(data: dict, p: dict | None = None) -> list[dict]:
                             "tags": e.get("tags") or [], "area": e.get("area"),
                             "start_sec": start, "end_sec": end, "on_screen": c["fields"].get("kind"),
                             "scene": cand_of.get(tuple(x["id"] for x in scene)),
-                            "replay": replay if replay and replay["start_sec"] - e["t"] <= p["replay_within"] else None})
+                            "replay": replay if replay and replay["start_sec"] - e["t"] <= p["replay_within"] else None,
+                            "score": kill_score(data, ref, e["t"]) if e["type"] == "kill" else None})
     return sorted(out, key=lambda x: x["t"])
 
 

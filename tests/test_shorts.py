@@ -83,3 +83,54 @@ class ShortsApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RenderLayoutTest(unittest.TestCase):
+    def test_caption_times_follow_joined_segments(self):
+        from pipeline.shorts.render import output_spans
+        segs = [(100.0, 110.0), (200.0, 210.0)]
+        self.assertEqual(output_spans(segs, 105, 108), [(5.0, 8.0)])
+        self.assertEqual(output_spans(segs, 108, 205), [(8.0, 10.0), (10.0, 15.0)])  # 두 구간에 걸침
+        self.assertEqual(output_spans(segs, 150, 160), [])  # 구간 밖
+
+    def test_command_has_layout_and_text(self):
+        import tempfile
+        from pipeline.shorts.render import _ffmpeg_cmd, _text_layers
+        segs = [(100.0, 110.0)]
+        with tempfile.TemporaryDirectory() as tmp:
+            texts = _text_layers(segs, ["2026 LCK 결승 1세트", "듀로의 즉시 복수"],
+                                 [{"start_sec": 104, "end_sec": 108, "lines": ["Kanavi, Ruler 잡고", "킬 GEN 3 : 4 HLE"]}],
+                                 Path(tmp))
+            cmd = _ffmpeg_cmd(Path("v.mp4"), segs, Path("o.mp4"), 23, "veryfast", texts)
+            graph = cmd[cmd.index("-filter_complex") + 1]
+        self.assertIn("crop=1180:1080:370:0", graph)
+        self.assertIn("overlay=0:320", graph)
+        self.assertEqual(graph.count("drawtext"), 4)
+        self.assertIn("enable='between(t,4.0,8.0)'", graph)
+
+
+class BgmTest(unittest.TestCase):
+    def test_pick_is_stable_and_listing_wins(self):
+        import json as _json
+        import tempfile
+        from pipeline.shorts import bgm
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.assertIsNone(bgm.pick("sabc", root))  # 곡 없음 → BGM 없이
+            for n in ("a.mp3", "b.mp3", "c.txt"):
+                (root / n).write_bytes(b"x")
+            self.assertEqual([Path(t["file"]).name for t in bgm.tracks(root)], ["a.mp3", "b.mp3"])
+            self.assertEqual(bgm.pick("sabc", root), bgm.pick("sabc", root))
+            (root / "bgm.json").write_text(_json.dumps([{"file": "b.mp3", "title": "B", "attribution": "B by X"},
+                                                        {"file": "없는.mp3", "title": "?"}]), encoding="utf-8")
+            self.assertEqual([t["title"] for t in bgm.tracks(root)], ["B"])  # 목록에 있고 파일이 있는 것만
+
+    def test_command_mixes_bgm_under_voice(self):
+        from pipeline.shorts.render import _ffmpeg_cmd
+        cmd = _ffmpeg_cmd(Path("v.mp4"), [(0.0, 10.0)], Path("o.mp4"), 23, "veryfast", [], "/b/song.mp3")
+        graph = cmd[cmd.index("-filter_complex") + 1]
+        self.assertIn("-stream_loop", cmd)
+        self.assertIn("sidechaincompress", graph)
+        self.assertIn("[aout]", cmd)
+        plain = _ffmpeg_cmd(Path("v.mp4"), [(0.0, 10.0)], Path("o.mp4"), 23, "veryfast", [])
+        self.assertIn("[ca]", plain)

@@ -283,6 +283,7 @@ class ShortClip(BaseModel):
     on_screen: str | None = None  # 이벤트 순간 화면 종류 (live · replay …)
     scene: str | None = None      # 이 이벤트가 든 후보 장면 id (c1 …), 후보가 아니면 None
     replay: dict | None = None    # 뒤따르는 리플레이 장면 {start_sec, end_sec, cuts}
+    score: dict | None = None     # 킬: 이 킬 직후 팀 킬 점수 {blue, red} (op.gg 누적, 분석 범위 앞 킬 포함)
 
 
 class ShortsResult(BaseModel):

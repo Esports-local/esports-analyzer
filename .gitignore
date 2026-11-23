@@ -11,3 +11,7 @@ outputs/
 *.mkv
 .idea/
 .vscode/
+
+# 숏폼 BGM 곡 (라이선스 확인한 파일은 로컬에만)
+assets/bgm/*
+!assets/bgm/README.md

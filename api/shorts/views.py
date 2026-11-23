@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 
 from api.paths import OUTPUTS, video_path
 from api.shorts.schemas import QueryRequest, QueryResult, ShortCreate, ShortState
+from pipeline.shorts import bgm
 from pipeline.shorts.render import render
 
 log = logging.getLogger(__name__)
@@ -119,8 +120,9 @@ def _work() -> None:
             short.status, short.attempts = "rendering", short.attempts + 1
             spec = short.spec
         try:
-            meta = render(video_path(spec.video), _out_path(spec),
-                          [s.model_dump() for s in spec.segments])
+            meta = render(video_path(spec.video), _out_path(spec), [s.model_dump() for s in spec.segments],
+                          title_lines=spec.title_lines, captions=[c.model_dump() for c in spec.captions],
+                          bgm=bgm.pick(spec.key))
             result = ("succeeded", meta, None)
         except Exception as e:  # ffmpeg 실패, 파일 없음 등. 워커는 멈추지 않는다
             log.exception("숏폼 %s 렌더 실패", spec.key)
@@ -138,4 +140,4 @@ def _state(short: Short) -> ShortState:
         key=short.spec.key, work_name=work_name, status=short.status,
         output=f"{work_name}/shorts/{short.spec.key}.mp4" if short.status == "succeeded" else None,
         duration_sec=meta.get("duration_sec"), render_sec=meta.get("render_sec"), size_bytes=meta.get("size_bytes"),
-        attempts=short.attempts, queue_position=position, error=short.error)
+        attempts=short.attempts, queue_position=position, error=short.error, bgm=meta.get("bgm"))
