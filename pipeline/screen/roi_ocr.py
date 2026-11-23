@@ -14,6 +14,10 @@
 
 1. 영상을 sample_fps 간격으로 한 장씩 읽어 기준 해상도로 맞춘다 (전체를 메모리에 올리지 않음).
 2. 영역마다 앞서 OCR 한 때와 화면이 거의 같으면(change_threshold 미만) 그 값을 다시 쓰고, 달라졌으면 OCR 한다.
+영역 건너뛰기: skip_tags 는 항상 (gold_diff: 쓰는 곳 없음, 골드 차이는 팀 골드 gold 로 계산),
+opgg_skip_tags 는 op.gg 상세 기록(work/opgg_timeline.json)이 있을 때 (킬·오브젝트는 op.gg 로 만들므로
+오브젝트 배너·용 아이콘·오브젝트 수를 화면에서 읽을 필요가 없다). op.gg 가 없으면 전부 읽는다 (timeline 대체 경로).
+
 3. 같은 값이 이어지면 한 구간으로 합친다. 못 읽은 샘플이 hold_sec 이하로 끼어 있으면 구간을 끊지 않는다
    (화면 효과로 잠깐 가려지는 경우). 그보다 길면 구간을 닫는다.
 """
@@ -47,6 +51,8 @@ DEFAULT_PARAMS = {
     # segments 구간 종류가 이 중 하나면 OCR 하지 않는다 (점수판이 없거나 가려진 화면). segments 가 없으면 전부 읽음
     "skip_kinds": ["replay", "postgame", "draft", "countdown", "break"],
     "skip_in_game": ["replay"],  # 경기 구간 안에서는 이것만 건너뜀 (리플레이는 점수판이 가려짐)
+    "skip_tags": ["gold_diff"],
+    "opgg_skip_tags": ["banner", "dragon_icons", "obj_count"],
 }
 
 
@@ -65,6 +71,11 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     p["layout"] = resolve(p["layout"], work_dir)
     layout = Path(p["layout"])
     rois = [Roi.from_config(c, i) for i, c in enumerate(json.loads(layout.read_text(encoding="utf-8"))["rois"])]
+    from pipeline.game.timeline import load_opgg
+
+    skip_tags = set(p["skip_tags"]) | (set(p["opgg_skip_tags"]) if load_opgg(work_dir) else set())
+    p["skipped_tags"] = sorted({r.tag for r in rois if r.tag in skip_tags})  # 결과 params 에 남김
+    rois = [r for r in rois if r.tag not in skip_tags]
     width, height = p["base_resolution"]
     reader = OcrReader()
     step = 1 / p["sample_fps"]
