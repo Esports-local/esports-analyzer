@@ -31,7 +31,7 @@
 - `pipeline/shorts/scenes.py`: 단계 shorts → `work/shorts.json` (LLM 없음). 컷 경계를 넘는 대사 문장이 있으면 앞뒤 컷을 한 장면으로 묶고(화면 종류가 바뀌면 나눔, `cross_tol_sec` 0.3), 킬·오브젝트(유충 제외)가 있는 live 장면을 후보로. 길이는 자르지 않음. 이벤트별 클립 `clips`(모음형 재료): 이벤트가 든 장면 안에서 앞뒤 문장 중 소리 0.85 이상인 것까지(4~12초 앞, 3~8초 뒤, 문장 경계), 뒤 90초 안 리플레이 장면 `replay`. 컷 트리는 그때 `bundle.build`로 만든다. 표 보기 `python -m pipeline.shorts.scenes outputs/<영상>`
 - `pipeline/shorts/rank.py`: 장면형 LLM (shorts 단계 안, 경기당 1번, `pipeline/llm.py` Gemini REST·응답 스키마 지정, 모델 `gemini-3.8-flash`). 입력 `llm_input.build` → 후보마다 {rank, start_line, end_line, titles 3개(공백 포함 10자 이내), reason} → 코드 검사(고침: lines_in_scene·covers_events(2초 여유)·length(8초)·title_rules / 표시: 180초 넘음·전투 도중 시작·끝(앞뒤 문장 loud 0.9)·title_names·title_counts·rank_vs_rule) → 후보에 rank·title·titles·reason·clip_start/end_sec·source(llm·llm+fixed·rule)·warnings. 기록 `work/shorts_llm.json`(입력 해시·원 응답·토큰·checks·final), 입력 `work/shorts_llm_input.json`. 같은 입력·모델·프롬프트 버전이면 다시 부르지 않음. 키가 없거나 실패하면 규칙 점수 순서·장면 전체·자동 제목. 설정 `use_llm`·`llm_model`. 예시 구간 1번 호출: 입력 8.9k·생각 2.5k·출력 0.6k 토큰
 - `pipeline/shorts/query.py`: 모음형 요청 글 → 조건 {killer 슬롯, type, team, tag} + 10자 제목 + note (LLM 은 요청 글과 선수 목록만 봄, 허용된 값만 남김). `POST /shorts/query`
-- `pipeline/shorts/render.py`: 숏폼 렌더 (ffmpeg 한 번, 구간 개수·길이 제한 없음). 구간들 → 1920x1080 가운데 9:16(608x1080)을 잘라 720x1280. 자막·제목은 넣지 않는다. 임시 파일에 쓰고 이름을 바꿔 결과로 만든다, 옆에 렌더 기록 .json
+- `pipeline/shorts/render.py`: 숏폼 렌더 (ffmpeg 한 번, 구간 개수·길이 제한 없음). 720x1280 검은 화면(11-23 참고 쇼츠 구성): 위 제목 1~2줄(`title_lines`, 첫 줄 흰색·둘째 줄 노란색) · 가운데 1920x1080 중계 화면 가운데 1180x1080 을 잘라 720x658 (y=320, 점수판·KDA 표가 보임) · 게임 화면 아래쪽 설명 자막(`captions`, 원본 시각 → 이어 붙인 영상 시각, `output_spans`). 나눔스퀘어 Bold + 검은 테두리. BGM(`pipeline/shorts/bgm.py`가 `assets/bgm/`에서 key 로 고른 곡, 곡 파일은 git 제외)이 있으면 반복해 깔고 해설이 나오면 줄임(sidechaincompress), 렌더 기록에 bgm. 임시 파일에 쓰고 이름을 바꿔 결과로 만든다, 옆에 렌더 기록 .json
 - `pipeline/__main__.py`: CLI. `--set 단계.키=값`으로 설정 덮어쓰기 (예: `--set header.match=32655`). `--start-sec 900 --max-sec 300`: 900~1200초만 분석(빠른 확인용, 결과 시각은 원본 기준), 결과는 `outputs/<영상명>_900-1200s/`에 따로 (header 도 그 폴더에 다시 만들어야 레이아웃 자동 선택이 된다)
 - `app/main.py`: FastAPI 앱. 엔드포인트 router 를 묶기만 한다 (`uvicorn app.main:app`)
 - `api/`: HTTP 엔드포인트. 엔드포인트마다 폴더 하나 (`views.py` router + `schemas.py` 요청·응답 모양 = 연동 스펙). 큐는 아직 없음
@@ -39,7 +39,7 @@
   - `videos/`: `GET /videos` (VIDEOS_ROOT 영상, 1920x1080·소리 있는 것만 selectable), `GET /videos/{name}/file` (원본 영상 그대로, Range 요청 가능, 허용 출처는 ui 주소 하나 `VIDEO_ALLOW_ORIGIN`(기본 `http://localhost:8000`), compose 는 포트를 127.0.0.1 에만 연다. api 가 `video_url`로 ui 에 넘겨 컷 탭에서 재생·프레임 뜨기)
   - `jobs/`: `POST /jobs`(파이프라인을 프로세스로 실행, 한 번에 하나, 로그 `work/job.log`), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`
     - 같은 job_id 를 다른 내용으로 보내면 409. 취소는 프로세스 그룹째(ffmpeg 등 하위 프로세스까지). 끝난 작업 기록은 최근 100개만 남김
-  - `shorts/`: `POST /shorts`(숏폼 렌더 접수), `GET /shorts/{key}`, `POST /shorts/query`(모음형 요청 글 → 조건, LLM. 못 쓰면 error 만). /jobs 와 달리 거절하지 않고 줄을 세운다 (워커 스레드 하나). 같은 key·내용이면 기존 상태, 실패한 것이면 다시 줄 세움, 다른 내용이면 409. 서버를 다시 띄워도 결과 파일이 있으면 succeeded
+  - `shorts/`: `POST /shorts`(숏폼 렌더 접수, `title_lines`·`captions`는 api 가 이벤트로 만들어 보냄, 상태에 `bgm`), `GET /shorts/{key}`, `POST /shorts/query`(모음형 요청 글 → 조건, LLM. 못 쓰면 error 만). /jobs 와 달리 거절하지 않고 줄을 세운다 (워커 스레드 하나). 같은 key·내용이면 기존 상태, 실패한 것이면 다시 줄 세움, 다른 내용이면 409. 서버를 다시 띄워도 결과 파일이 있으면 succeeded
 
 ```
 docker build -t esports-analyzer .
