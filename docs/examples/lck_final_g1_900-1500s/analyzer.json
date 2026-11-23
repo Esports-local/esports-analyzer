@@ -380,6 +380,15 @@
     "game_start_sec": 1027.5
    }
   ],
+  "event_source": "opgg",
+  "sync": {
+   "checked": 8,
+   "matched": 8,
+   "lag_median_sec": 1.65,
+   "lag_min_sec": 1.11,
+   "lag_max_sec": 2.04,
+   "outliers": []
+  },
   "segment_types": {
    "phase": {
     "description": "큰 구간. game(경기 00:00 ~ 끝, 리플레이·캠 포함) · draft(밴픽) · postgame(경기 뒤 통계·하이라이트) · countdown(세트 사이 대기) · break(그 밖)",
@@ -421,23 +430,19 @@
      },
      "events": {
       "type": "list[object]",
-      "description": "킬·오브젝트·타워 (context.events), 앞뒤 해설 대사(lines) 포함"
+      "description": "킬·오브젝트·타워 (context.events, op.gg 기록 + 화면 타워), 앞뒤 해설 대사(lines)·맵 구역(area) 포함"
      },
      "lines": {
       "type": "list[object]",
       "description": "해설 대사 {id, from_sec, to_sec, text, raw?, fixes?}"
      },
-     "screen": {
+     "state": {
       "type": "object",
-      "description": "장면 끝 화면 값 {kills: {blue, red}, gold_diff}"
-     },
-     "reference": {
-      "type": "list[object]",
-      "description": "op.gg 정답지 (검증용): kill · 오브젝트(grubs·dragon·herald·baron·…) {video_sec, game_time, side, killer, killer_name, killer_champion, position, area, matched_event, diff_sec}, minute {positions, gold}"
+      "description": "장면 끝 경기 상태 {kills: {blue, red} 이벤트 누적, gold_diff 블루 기준 (화면 값, 없으면 op.gg 1분 보간), gold_source screen · opgg}"
      },
      "signals": {
       "type": "object",
-      "description": "장면 길이만큼 초 단위 loudness(소리 크기 0~1)·gold_diff·cut_rate + loudness_max·loudness_mean"
+      "description": "장면 길이만큼 step_sec 간격 loudness(소리 크기 0~1)·gold_diff·cut_rate (첫 값 시각 start_sec) + loudness_max·loudness_mean"
      }
     },
     "allowed_children": {}
@@ -475,8 +480,9 @@
         "text": "이런 게 양쪽이 가지고 있는 라이너들의 퍼포먼스가 지금 합이 맞는 거고"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 900.0,
+       "step_sec": 1.0,
        "loudness": [
         0.552,
         0.456,
@@ -498,12 +504,13 @@
        "loudness_max": 0.561,
        "loudness_mean": 0.507
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -300.0
+       "gold_diff": -300.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -529,8 +536,9 @@
         "text": "라인 수업 타이밍이 겹치는 것도 서로가 하는 생각을 똑같이 하고 있는 거예요"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 903.0,
+       "step_sec": 1.0,
        "loudness": [
         0.458,
         0.593,
@@ -561,12 +569,13 @@
        "loudness_max": 0.75,
        "loudness_mean": 0.556
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -400.0
+       "gold_diff": -400.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -592,8 +601,9 @@
         "text": "그렌드 파이널 닫고 유충치고 있습니다"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 909.0,
+       "step_sec": 1.0,
        "loudness": [
         0.393,
         0.569,
@@ -612,12 +622,13 @@
        "loudness_max": 0.627,
        "loudness_mean": 0.53
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -300.0
+       "gold_diff": -300.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -643,8 +654,9 @@
         "text": "이제부터 좀 걸리기 시작합니다"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 911.0,
+       "step_sec": 1.0,
        "loudness": [
         0.627,
         0.451,
@@ -663,12 +675,13 @@
        "loudness_max": 0.627,
        "loudness_mean": 0.385
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -400.0
+       "gold_diff": -400.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -688,18 +701,22 @@
       "events": [
        {
         "id": 1,
-        "t": 920.0,
-        "game_time": "08:30",
+        "t": 918.877,
+        "game_time": "08:28",
         "type": "objective",
         "subtype": "grubs",
         "team": "blue",
-        "killer": null,
+        "killer": "blue_jungle",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "obj_count/blue 0→1 @920.0"
+         "opgg grubs 08:28"
         ],
+        "position": {
+         "x": 4790,
+         "y": 10182
+        },
         "lines": [
          {
           "id": 5,
@@ -732,7 +749,10 @@
           "text": "이미 바이는 좀 기분은 괜찮다고 보거든요"
          }
         ],
-        "victims_detail": []
+        "killer_name": "Canyon",
+        "killer_champion": "바이",
+        "victims_detail": [],
+        "area": "baron_pit"
        }
       ],
       "lines": [
@@ -787,27 +807,9 @@
         "text": "지금 유충적으로 와도"
        }
       ],
-      "reference": [
-       {
-        "t": 508.877,
-        "game_time": "08:28",
-        "type": "grubs",
-        "subtype": null,
-        "side": "blue",
-        "killer": "blue_jungle",
-        "position": {
-         "x": 4790,
-         "y": 10182
-        },
-        "area": "baron_pit",
-        "killer_name": "Canyon",
-        "killer_champion": "바이",
-        "video_sec": 918.877,
-        "matched_event": 1,
-        "diff_sec": 1.12
-       }
-      ],
       "signals": {
+       "start_sec": 913.0,
+       "step_sec": 1.0,
        "loudness": [
         0.078,
         0.481,
@@ -844,12 +846,13 @@
        "loudness_max": 0.626,
        "loudness_mean": 0.497
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -600.0
+       "gold_diff": -600.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -869,19 +872,28 @@
       "events": [
        {
         "id": 2,
-        "t": 926.0,
-        "game_time": "08:36",
+        "t": 924.054,
+        "game_time": "08:34",
         "type": "objective",
         "subtype": "grubs",
         "team": "blue",
-        "killer": null,
+        "killer": "blue_jungle",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "obj_count/blue 1→2 @926.0"
+         "opgg grubs 08:34"
         ],
+        "position": {
+         "x": 5038,
+         "y": 10275
+        },
         "lines": [
+         {
+          "id": 7,
+          "from_sec": 918.56,
+          "text": "아니면 상대 정도의 카정을 하든가"
+         },
          {
           "id": 8,
           "from_sec": 920.12,
@@ -911,14 +923,12 @@
           "id": 13,
           "from_sec": 928.72,
           "text": "그건 아닌가 보네요 2개까지"
-         },
-         {
-          "id": 14,
-          "from_sec": 930.38,
-          "text": "이렇게만 해도 괜찮아서"
          }
         ],
-        "victims_detail": []
+        "killer_name": "Canyon",
+        "killer_champion": "바이",
+        "victims_detail": [],
+        "area": "baron_pit"
        }
       ],
       "lines": [
@@ -951,27 +961,9 @@
         "text": "먹을 수 있으면 3개 다 먹자"
        }
       ],
-      "reference": [
-       {
-        "t": 514.054,
-        "game_time": "08:34",
-        "type": "grubs",
-        "subtype": null,
-        "side": "blue",
-        "killer": "blue_jungle",
-        "position": {
-         "x": 5038,
-         "y": 10275
-        },
-        "area": "baron_pit",
-        "killer_name": "Canyon",
-        "killer_champion": "바이",
-        "video_sec": 924.054,
-        "matched_event": 2,
-        "diff_sec": 1.95
-       }
-      ],
       "signals": {
+       "start_sec": 921.0,
+       "step_sec": 1.0,
        "loudness": [
         0.626,
         0.477,
@@ -1005,12 +997,13 @@
        "loudness_max": 0.749,
        "loudness_mean": 0.559
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -700.0
+       "gold_diff": -700.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1048,8 +1041,9 @@
         "text": "늦게라도 나가서 깔끔하게 주는 건 마른 건데"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 928.0,
+       "step_sec": 1.0,
        "loudness": [
         0.716,
         0.661,
@@ -1077,12 +1071,13 @@
        "loudness_max": 0.716,
        "loudness_mean": 0.585
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -700.0
+       "gold_diff": -700.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1114,8 +1109,9 @@
         "text": "저번에 댓글을 걸었습니다만 열심히 따라오고 있습니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 933.0,
+       "step_sec": 1.0,
        "loudness": [
         0.501,
         0.505,
@@ -1149,12 +1145,13 @@
        "loudness_max": 0.761,
        "loudness_mean": 0.361
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -600.0
+       "gold_diff": -600.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1180,8 +1177,9 @@
         "text": "개념."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 940.0,
+       "step_sec": 1.0,
        "loudness": [
         0.231,
         0.548,
@@ -1203,12 +1201,13 @@
        "loudness_max": 0.707,
        "loudness_mean": 0.507
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1228,18 +1227,22 @@
       "events": [
        {
         "id": 3,
-        "t": 947.0,
-        "game_time": "08:57",
+        "t": 945.993,
+        "game_time": "08:55",
         "type": "objective",
         "subtype": "grubs",
         "team": "red",
-        "killer": null,
+        "killer": "red_jungle",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "obj_count/red 0→1 @947.0"
+         "opgg grubs 08:55"
         ],
+        "position": {
+         "x": 4842,
+         "y": 10638
+        },
         "lines": [
          {
           "id": 17,
@@ -1257,7 +1260,10 @@
           "text": "이제 다시 그러면 유충은 사라졌기 때문에 용쪽으로 전장이 옮겨지니까"
          }
         ],
-        "victims_detail": []
+        "killer_name": "Kanavi",
+        "killer_champion": "나피리",
+        "victims_detail": [],
+        "area": "baron_pit"
        }
       ],
       "lines": [
@@ -1274,89 +1280,9 @@
         "text": "또 서로 간에 소압을 하고 있고요."
        }
       ],
-      "reference": [
-       {
-        "t": 535.993,
-        "game_time": "08:55",
-        "type": "grubs",
-        "subtype": null,
-        "side": "red",
-        "killer": "red_jungle",
-        "position": {
-         "x": 4842,
-         "y": 10638
-        },
-        "area": "baron_pit",
-        "killer_name": "Kanavi",
-        "killer_champion": "나피리",
-        "video_sec": 945.993,
-        "matched_event": 3,
-        "diff_sec": 1.01
-       },
-       {
-        "type": "minute",
-        "t": 540.0,
-        "game_time": "09:00",
-        "positions": {
-         "blue_bot": {
-          "x": 4293,
-          "y": 887,
-          "area": "bot_lane"
-         },
-         "blue_jungle": {
-          "x": 5363,
-          "y": 5585,
-          "area": "mid_lane"
-         },
-         "blue_mid": {
-          "x": 5822,
-          "y": 6037,
-          "area": "mid_lane"
-         },
-         "blue_support": {
-          "x": 1797,
-          "y": 10509,
-          "area": "top_lane"
-         },
-         "blue_top": {
-          "x": 10417,
-          "y": 2660,
-          "area": "blue_jungle"
-         },
-         "red_bot": {
-          "x": 13873,
-          "y": 9529,
-          "area": "bot_lane"
-         },
-         "red_jungle": {
-          "x": 6184,
-          "y": 9496,
-          "area": "river"
-         },
-         "red_mid": {
-          "x": 7078,
-          "y": 6931,
-          "area": "mid_lane"
-         },
-         "red_support": {
-          "x": 6586,
-          "y": 7591,
-          "area": "mid_lane"
-         },
-         "red_top": {
-          "x": 6091,
-          "y": 8324,
-          "area": "river"
-         }
-        },
-        "gold": {
-         "blue": 14155,
-         "red": 14584
-        },
-        "video_sec": 950.0
-       }
-      ],
       "signals": {
+       "start_sec": 943.0,
+       "step_sec": 1.0,
        "loudness": [
         0.707,
         0.0,
@@ -1399,12 +1325,13 @@
        "loudness_max": 0.707,
        "loudness_mean": 0.36
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -400.0
+       "gold_diff": -400.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1436,8 +1363,9 @@
         "text": "중유의한테 포인트 쪽으로 바텀 조합들이 움직입니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 953.0,
+       "step_sec": 1.0,
        "loudness": [
         0.383,
         0.263,
@@ -1462,12 +1390,13 @@
        "loudness_max": 0.545,
        "loudness_mean": 0.329
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1515,8 +1444,9 @@
         ]
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 957.0,
+       "step_sec": 1.0,
        "loudness": [
         0.545,
         0.639,
@@ -1571,12 +1501,13 @@
        "loudness_max": 0.679,
        "loudness_mean": 0.533
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1608,8 +1539,9 @@
         "text": "서로 욕심을 낼 수 있습니다. 아래쪽 천용이 되겠는데요."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 971.0,
+       "step_sec": 1.0,
        "loudness": [
         0.389,
         0.323,
@@ -1676,12 +1608,13 @@
        "loudness_max": 0.731,
        "loudness_mean": 0.344
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -600.0
+       "gold_diff": -600.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1707,8 +1640,9 @@
         "text": "그렇다는 얘기는 결국 라이즈까지 전멸이 무난하게 돌아오고 나면 또 한 번 바텀에서 어떻게 불어내냐의 문제일 것 같아요."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 989.0,
+       "step_sec": 1.0,
        "loudness": [
         0.699,
         0.041,
@@ -1733,12 +1667,13 @@
        "loudness_max": 0.699,
        "loudness_mean": 0.431
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -700.0
+       "gold_diff": -700.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1776,8 +1711,9 @@
         "text": "무마요즈 체력은 4분의 1이다. 어쩔래? 욕 먹을까?"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 993.0,
+       "step_sec": 1.0,
        "loudness": [
         0.498,
         0.444,
@@ -1832,12 +1768,13 @@
        "loudness_max": 1.0,
        "loudness_mean": 0.702
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1863,71 +1800,9 @@
         "text": "그러니까 이게 결국 아드 같은 핏도 변수에는 강하일지 몰라도 그냥 무난하게 가면 밀리오가 할 수 있는 게 많거든요."
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 600.0,
-        "game_time": "10:00",
-        "positions": {
-         "blue_bot": {
-          "x": 12752,
-          "y": 2599,
-          "area": "bot_lane"
-         },
-         "blue_jungle": {
-          "x": 8734,
-          "y": 6376,
-          "area": "river"
-         },
-         "blue_mid": {
-          "x": 6568,
-          "y": 7203,
-          "area": "mid_lane"
-         },
-         "blue_support": {
-          "x": 11929,
-          "y": 3319,
-          "area": "river"
-         },
-         "blue_top": {
-          "x": 2513,
-          "y": 11559,
-          "area": "river"
-         },
-         "red_bot": {
-          "x": 12247,
-          "y": 4595,
-          "area": "red_jungle"
-         },
-         "red_jungle": {
-          "x": 11082,
-          "y": 8557,
-          "area": "red_jungle"
-         },
-         "red_mid": {
-          "x": 7710,
-          "y": 7870,
-          "area": "mid_lane"
-         },
-         "red_support": {
-          "x": 11943,
-          "y": 4282,
-          "area": "river"
-         },
-         "red_top": {
-          "x": 2817,
-          "y": 11643,
-          "area": "river"
-         }
-        },
-        "gold": {
-         "blue": 15842,
-         "red": 16344
-        },
-        "video_sec": 1010.0
-       }
-      ],
       "signals": {
+       "start_sec": 1007.0,
+       "step_sec": 1.0,
        "loudness": [
         0.987,
         0.867,
@@ -1958,12 +1833,13 @@
        "loudness_max": 0.987,
        "loudness_mean": 0.74
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -400.0
+       "gold_diff": -400.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -1982,8 +1858,9 @@
       ],
       "events": [],
       "lines": [],
-      "reference": [],
       "signals": {
+       "start_sec": 1013.0,
+       "step_sec": 1.0,
        "loudness": [
         0.406,
         0.522,
@@ -2005,12 +1882,13 @@
        "loudness_max": 0.575,
        "loudness_mean": 0.51
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -2048,8 +1926,9 @@
         "text": "이게 하나 한번 세게 오는 걸로."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1016.0,
+       "step_sec": 1.0,
        "loudness": [
         0.575,
         0.265,
@@ -2080,12 +1959,13 @@
        "loudness_max": 0.845,
        "loudness_mean": 0.579
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 0
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -2105,8 +1985,8 @@
       "events": [
        {
         "id": 4,
-        "t": 1030.0,
-        "game_time": "10:20",
+        "t": 1028.787,
+        "game_time": "10:18",
         "type": "kill",
         "subtype": null,
         "team": "red",
@@ -2122,9 +2002,18 @@
          "first_blood"
         ],
         "source": [
-         "team_kills/red 0→1 @1030.0"
+         "opgg kill 10:18"
         ],
+        "position": {
+         "x": 11221,
+         "y": 3294
+        },
         "lines": [
+         {
+          "id": 36,
+          "from_sec": 1023.1,
+          "text": "지지고, 하지만."
+         },
          {
           "id": 37,
           "from_sec": 1024.888,
@@ -2179,7 +2068,8 @@
           "name": "Duro",
           "champion": "밀리오"
          }
-        ]
+        ],
+        "area": "river"
        }
       ],
       "lines": [
@@ -2285,26 +2175,9 @@
         "text": "일단 용둥지에 배치되어 있긴 합니다만 바이가 이거 치는데 이거 괜찮겠습니까?"
        }
       ],
-      "reference": [
-       {
-        "type": "kill",
-        "t": 618.787,
-        "game_time": "10:18",
-        "side": "red",
-        "killer": "red_bot",
-        "position": {
-         "x": 11221,
-         "y": 3294
-        },
-        "killer_name": "Gumayusi",
-        "killer_champion": "케이틀린",
-        "area": "river",
-        "video_sec": 1028.787,
-        "matched_event": 4,
-        "diff_sec": 1.21
-       }
-      ],
       "signals": {
+       "start_sec": 1022.0,
+       "step_sec": 1.0,
        "loudness": [
         0.647,
         0.821,
@@ -2392,12 +2265,13 @@
        "loudness_max": 0.959,
        "loudness_mean": 0.571
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 0,
         "red": 1
        },
-       "gold_diff": -1200.0
+       "gold_diff": -1200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -2417,29 +2291,23 @@
       "events": [
        {
         "id": 5,
-        "t": 1074.5,
-        "game_time": null,
+        "t": 1069.064,
+        "game_time": "10:59",
         "type": "objective",
         "subtype": "dragon:earth",
         "team": "blue",
-        "killer": null,
+        "killer": "blue_jungle",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "banner 'MOUNTAIN DRAKE' @1074.5"
+         "opgg dragon 10:59"
         ],
+        "position": {
+         "x": 9861,
+         "y": 4415
+        },
         "lines": [
-         {
-          "id": 56,
-          "from_sec": 1057.816,
-          "text": "그리고 갈리오 궁닥 보고 있어요, 내려오고 있어."
-         },
-         {
-          "id": 57,
-          "from_sec": 1060.6,
-          "text": "인장 없는데 나피리가 강타가 없어서요."
-         },
          {
           "id": 58,
           "from_sec": 1062.74,
@@ -2469,40 +2337,37 @@
           "id": 63,
           "from_sec": 1073.08,
           "text": "나이제 아래쪽 나피리."
-         },
-         {
-          "id": 64,
-          "from_sec": 1074.92,
-          "text": "사람이 못 뗄 수 있으면 가를 잡고."
-         },
-         {
-          "id": 65,
-          "from_sec": 1076.98,
-          "text": "벗도 됐고 체니어 파가 셀프 체니어 파가 됐어요."
-         },
-         {
-          "id": 66,
-          "from_sec": 1078.98,
-          "text": "캐니언은 버텼어요."
          }
         ],
-        "victims_detail": []
+        "killer_name": "Canyon",
+        "killer_champion": "바이",
+        "victims_detail": [],
+        "area": "dragon_pit"
        },
        {
         "id": 6,
-        "t": 1078.0,
-        "game_time": "11:13",
+        "t": 1076.323,
+        "game_time": "11:06",
         "type": "kill",
         "subtype": null,
         "team": "blue",
-        "killer": null,
+        "killer": "blue_bot",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "team_kills/blue 0→1 @1078.0"
+         "opgg kill 11:06"
         ],
+        "position": {
+         "x": 10218,
+         "y": 5639
+        },
         "lines": [
+         {
+          "id": 62,
+          "from_sec": 1070.44,
+          "text": "갈리오는 위에 떨어집니다."
+         },
          {
           "id": 63,
           "from_sec": 1073.08,
@@ -2527,38 +2392,37 @@
           "id": 67,
           "from_sec": 1080.3,
           "text": "이렇게 되면."
-         },
-         {
-          "id": 68,
-          "from_sec": 1082.42,
-          "text": "젠지."
          }
         ],
-        "victims_detail": []
+        "killer_name": "Ruler",
+        "killer_champion": "루시안",
+        "victims_detail": [],
+        "area": "dragon_pit"
        },
        {
         "id": 7,
-        "t": 1083.0,
-        "game_time": "11:13",
+        "t": 1081.203,
+        "game_time": "11:11",
         "type": "kill",
         "subtype": null,
         "team": "blue",
-        "killer": "blue_bot",
-        "victims": [
-         "red_jungle",
-         "red_support"
-        ],
-        "assists": [
-         "blue_bot",
-         "blue_jungle",
-         "blue_support",
-         "blue_top"
-        ],
+        "killer": "blue_mid",
+        "victims": [],
+        "assists": [],
         "tags": [],
         "source": [
-         "team_kills/blue 1→2 @1083.0"
+         "opgg kill 11:11"
         ],
+        "position": {
+         "x": 11319,
+         "y": 5654
+        },
         "lines": [
+         {
+          "id": 64,
+          "from_sec": 1074.92,
+          "text": "사람이 못 뗄 수 있으면 가를 잡고."
+         },
          {
           "id": 65,
           "from_sec": 1076.98,
@@ -2583,27 +2447,12 @@
           "id": 69,
           "from_sec": 1084.072,
           "text": "한 박에 2포인트 먹습니다."
-         },
-         {
-          "id": 70,
-          "from_sec": 1086.312,
-          "text": "순간적인 교전 집중력이 정말 좋았죠."
          }
         ],
-        "killer_name": "Ruler",
-        "killer_champion": "루시안",
-        "victims_detail": [
-         {
-          "slot": "red_jungle",
-          "name": "Kanavi",
-          "champion": "나피리"
-         },
-         {
-          "slot": "red_support",
-          "name": "Delight",
-          "champion": "바드"
-         }
-        ]
+        "killer_name": "Chovy",
+        "killer_champion": "라이즈",
+        "victims_detail": [],
+        "area": "red_jungle"
        }
       ],
       "lines": [
@@ -2778,123 +2627,9 @@
         "text": "한 박에 2포인트 먹습니다."
        }
       ],
-      "reference": [
-       {
-        "t": 659.064,
-        "game_time": "10:59",
-        "type": "dragon",
-        "subtype": "earth",
-        "side": "blue",
-        "killer": "blue_jungle",
-        "position": {
-         "x": 9861,
-         "y": 4415
-        },
-        "area": "dragon_pit",
-        "killer_name": "Canyon",
-        "killer_champion": "바이",
-        "video_sec": 1069.064,
-        "matched_event": 5,
-        "diff_sec": 5.44
-       },
-       {
-        "type": "minute",
-        "t": 660.0,
-        "game_time": "11:00",
-        "positions": {
-         "blue_bot": {
-          "x": 9812,
-          "y": 4426,
-          "area": "dragon_pit"
-         },
-         "blue_jungle": {
-          "x": 9834,
-          "y": 4793,
-          "area": "dragon_pit"
-         },
-         "blue_mid": {
-          "x": 9923,
-          "y": 6354,
-          "area": "river"
-         },
-         "blue_support": {
-          "x": 9019,
-          "y": 5438,
-          "area": "river"
-         },
-         "blue_top": {
-          "x": 10101,
-          "y": 5289,
-          "area": "dragon_pit"
-         },
-         "red_bot": {
-          "x": 10918,
-          "y": 4672,
-          "area": "dragon_pit"
-         },
-         "red_jungle": {
-          "x": 10728,
-          "y": 4856,
-          "area": "dragon_pit"
-         },
-         "red_mid": {
-          "x": 10579,
-          "y": 6120,
-          "area": "red_jungle"
-         },
-         "red_support": {
-          "x": 10654,
-          "y": 5489,
-          "area": "river"
-         },
-         "red_top": {
-          "x": 6816,
-          "y": 7874,
-          "area": "mid_lane"
-         }
-        },
-        "gold": {
-         "blue": 17106,
-         "red": 18232
-        },
-        "video_sec": 1070.0
-       },
-       {
-        "type": "kill",
-        "t": 666.323,
-        "game_time": "11:06",
-        "side": "blue",
-        "killer": "blue_bot",
-        "position": {
-         "x": 10218,
-         "y": 5639
-        },
-        "killer_name": "Ruler",
-        "killer_champion": "루시안",
-        "area": "dragon_pit",
-        "video_sec": 1076.323,
-        "matched_event": 6,
-        "diff_sec": 1.68
-       },
-       {
-        "type": "kill",
-        "t": 671.203,
-        "game_time": "11:11",
-        "side": "blue",
-        "killer": "blue_mid",
-        "position": {
-         "x": 11319,
-         "y": 5654
-        },
-        "killer_name": "Chovy",
-        "killer_champion": "라이즈",
-        "area": "red_jungle",
-        "video_sec": 1081.203,
-        "matched_event": 7,
-        "diff_sec": 1.8
-       }
-      ],
       "signals": {
+       "start_sec": 1047.0,
+       "step_sec": 1.0,
        "loudness": [
         0.492,
         0.688,
@@ -3021,12 +2756,13 @@
        "loudness_max": 0.935,
        "loudness_mean": 0.742
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -100.0
+       "gold_diff": -100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3058,8 +2794,9 @@
         "text": "하나 생명 입장에서도 상대가 바로 이렇게 대놓고 칠 거라고 생각은 좀 못했던 것 같아요."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1085.0,
+       "step_sec": 1.0,
        "loudness": [
         0.707,
         0.644,
@@ -3096,12 +2833,13 @@
        "loudness_max": 0.707,
        "loudness_mean": 0.542
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3127,8 +2865,9 @@
         "text": "그래서 치니까 당황해서 이제 교전 준비를 다시 했는데 그 과정에서 뭔가 갈리오 연계, 충격파 연계 이런 것들이 맛있게 들어가지는 않았습니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1093.0,
+       "step_sec": 1.0,
        "loudness": [
         0.459,
         0.535,
@@ -3147,12 +2886,13 @@
        "loudness_max": 0.535,
        "loudness_mean": 0.488
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -100.0
+       "gold_diff": -100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3171,8 +2911,9 @@
       ],
       "events": [],
       "lines": [],
-      "reference": [],
       "signals": {
+       "start_sec": 1095.0,
+       "step_sec": 1.0,
        "loudness": [
         0.47,
         0.435,
@@ -3194,12 +2935,13 @@
        "loudness_max": 0.47,
        "loudness_mean": 0.418
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -100.0
+       "gold_diff": -100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3231,8 +2973,9 @@
         "text": "이 키를 먹었고 용까지 넘어갔습니다. 다시 보겠습니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1098.0,
+       "step_sec": 1.0,
        "loudness": [
         0.373,
         0.495,
@@ -3260,12 +3003,13 @@
        "loudness_max": 0.677,
        "loudness_mean": 0.54
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -100.0
+       "gold_diff": -100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3304,8 +3048,9 @@
         "text": "이 다음에 이제 어떤 스피드가 나오냐가 중요했는데 그 후 처리를 또 반대쪽에서 자란 거죠."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1103.0,
+       "step_sec": 1.0,
        "loudness": [
         0.565,
         0.763,
@@ -3357,12 +3102,13 @@
        "loudness_max": 0.842,
        "loudness_mean": 0.672
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3421,71 +3167,9 @@
         "text": "딜라잇."
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 720.0,
-        "game_time": "12:00",
-        "positions": {
-         "blue_bot": {
-          "x": 12518,
-          "y": 1938,
-          "area": "bot_lane"
-         },
-         "blue_jungle": {
-          "x": 4064,
-          "y": 6096,
-          "area": "blue_jungle"
-         },
-         "blue_mid": {
-          "x": 6731,
-          "y": 6929,
-          "area": "mid_lane"
-         },
-         "blue_support": {
-          "x": 12048,
-          "y": 2132,
-          "area": "bot_lane"
-         },
-         "blue_top": {
-          "x": 1190,
-          "y": 12352,
-          "area": "top_lane"
-         },
-         "red_bot": {
-          "x": 12680,
-          "y": 2884,
-          "area": "bot_lane"
-         },
-         "red_jungle": {
-          "x": 6774,
-          "y": 11756,
-          "area": "red_jungle"
-         },
-         "red_mid": {
-          "x": 8925,
-          "y": 8309,
-          "area": "mid_lane"
-         },
-         "red_support": {
-          "x": 10329,
-          "y": 3702,
-          "area": "dragon_pit"
-         },
-         "red_top": {
-          "x": 2617,
-          "y": 12919,
-          "area": "top_lane"
-         }
-        },
-        "gold": {
-         "blue": 19291,
-         "red": 19746
-        },
-        "video_sec": 1130.0
-       }
-      ],
       "signals": {
+       "start_sec": 1116.0,
+       "step_sec": 1.0,
        "loudness": [
         0.578,
         0.681,
@@ -3561,12 +3245,13 @@
        "loudness_max": 0.779,
        "loudness_mean": 0.529
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3658,8 +3343,9 @@
         "text": "이런 치열한 게임일수록 그런 게 조금 더 크게 작용될 여지가 있긴 합니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1137.0,
+       "step_sec": 1.0,
        "loudness": [
         0.705,
         0.797,
@@ -3786,12 +3472,13 @@
        "loudness_max": 1.0,
        "loudness_mean": 0.488
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3817,8 +3504,9 @@
         "text": "그럼요. 오브젝트 전으로 다른 포인트, 킬 같은 것도 추가가 됐습니다 젠지."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1175.0,
+       "step_sec": 1.0,
        "loudness": [
         0.417,
         0.361,
@@ -3843,12 +3531,13 @@
        "loudness_max": 0.761,
        "loudness_mean": 0.504
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3867,8 +3556,9 @@
       ],
       "events": [],
       "lines": [],
-      "reference": [],
       "signals": {
+       "start_sec": 1179.0,
+       "step_sec": 1.0,
        "loudness": [
         0.761,
         0.732,
@@ -3893,12 +3583,13 @@
        "loudness_max": 0.761,
        "loudness_mean": 0.431
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3924,8 +3615,9 @@
         "text": "그래서 일단 바텀들이 한 번 적당히 라인 관리를 하고 정비를 해야 되는"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1183.0,
+       "step_sec": 1.0,
        "loudness": [
         0.0,
         0.15,
@@ -3947,12 +3639,13 @@
        "loudness_max": 0.545,
        "loudness_mean": 0.303
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -200.0
+       "gold_diff": -200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -3971,8 +3664,9 @@
       ],
       "events": [],
       "lines": [],
-      "reference": [],
       "signals": {
+       "start_sec": 1186.0,
+       "step_sec": 1.0,
        "loudness": [
         0.545,
         0.445,
@@ -3991,12 +3685,13 @@
        "loudness_max": 0.545,
        "loudness_mean": 0.509
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 1
        },
-       "gold_diff": -300.0
+       "gold_diff": -300.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4016,8 +3711,8 @@
       "events": [
        {
         "id": 8,
-        "t": 1197.0,
-        "game_time": "13:07",
+        "t": 1194.958,
+        "game_time": "13:04",
         "type": "kill",
         "subtype": null,
         "team": "red",
@@ -4030,8 +3725,12 @@
         ],
         "tags": [],
         "source": [
-         "team_kills/red 1→2 @1197.0"
+         "opgg kill 13:04"
         ],
+        "position": {
+         "x": 5300,
+         "y": 5841
+        },
         "lines": [
          {
           "id": 98,
@@ -4052,11 +3751,6 @@
           "id": 101,
           "from_sec": 1196.168,
           "text": "근데 이거를 이렇게 들어올 거라고 진짜 생각하기가 너무 어려웠을 것 같은데요?"
-         },
-         {
-          "id": 102,
-          "from_sec": 1201.248,
-          "text": "자 정지명료는 일부 직전 때 들어갈 수 있습니까? 개념!"
          }
         ],
         "killer_name": "Kanavi",
@@ -4067,12 +3761,13 @@
           "name": "Chovy",
           "champion": "라이즈"
          }
-        ]
+        ],
+        "area": "mid_lane"
        },
        {
         "id": 9,
-        "t": 1210.0,
-        "game_time": "13:20",
+        "t": 1208.348,
+        "game_time": "13:18",
         "type": "kill",
         "subtype": null,
         "team": "red",
@@ -4087,9 +3782,23 @@
         ],
         "tags": [],
         "source": [
-         "team_kills/red 2→3 @1210.0"
+         "opgg kill 13:18"
         ],
+        "position": {
+         "x": 6227,
+         "y": 7597
+        },
         "lines": [
+         {
+          "id": 102,
+          "from_sec": 1201.248,
+          "text": "자 정지명료는 일부 직전 때 들어갈 수 있습니까? 개념!"
+         },
+         {
+          "id": 103,
+          "from_sec": 1203.708,
+          "text": "더 가나요?"
+         },
          {
           "id": 104,
           "from_sec": 1204.268,
@@ -4119,7 +3828,8 @@
           "name": "Canyon",
           "champion": "바이"
          }
-        ]
+        ],
+        "area": "river"
        }
       ],
       "lines": [
@@ -4206,105 +3916,9 @@
         "text": "방격하는 케녁까지 같이 물어버렸습니다. 그래서 상황만 봤을 때는 바텀들 그냥 정비하자의 느낌이었는데 원래"
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 780.0,
-        "game_time": "13:00",
-        "positions": {
-         "blue_bot": {
-          "x": 2240,
-          "y": 1544,
-          "area": "blue_base"
-         },
-         "blue_jungle": {
-          "x": 2525,
-          "y": 3786,
-          "area": "blue_jungle"
-         },
-         "blue_mid": {
-          "x": 5411,
-          "y": 6532,
-          "area": "mid_lane"
-         },
-         "blue_support": {
-          "x": 10691,
-          "y": 2499,
-          "area": "blue_jungle"
-         },
-         "blue_top": {
-          "x": 2140,
-          "y": 12123,
-          "area": "top_lane"
-         },
-         "red_bot": {
-          "x": 12769,
-          "y": 12824,
-          "area": "red_base"
-         },
-         "red_jungle": {
-          "x": 5982,
-          "y": 5144,
-          "area": "mid_lane"
-         },
-         "red_mid": {
-          "x": 6179,
-          "y": 6881,
-          "area": "mid_lane"
-         },
-         "red_support": {
-          "x": 12309,
-          "y": 12508,
-          "area": "red_base"
-         },
-         "red_top": {
-          "x": 2354,
-          "y": 12897,
-          "area": "top_lane"
-         }
-        },
-        "gold": {
-         "blue": 21576,
-         "red": 21883
-        },
-        "video_sec": 1190.0
-       },
-       {
-        "type": "kill",
-        "t": 784.958,
-        "game_time": "13:04",
-        "side": "red",
-        "killer": "red_jungle",
-        "position": {
-         "x": 5300,
-         "y": 5841
-        },
-        "killer_name": "Kanavi",
-        "killer_champion": "나피리",
-        "area": "mid_lane",
-        "video_sec": 1194.958,
-        "matched_event": 8,
-        "diff_sec": 2.04
-       },
-       {
-        "type": "kill",
-        "t": 798.348,
-        "game_time": "13:18",
-        "side": "red",
-        "killer": "red_mid",
-        "position": {
-         "x": 6227,
-         "y": 7597
-        },
-        "killer_name": "Zeka",
-        "killer_champion": "오리아나",
-        "area": "river",
-        "video_sec": 1208.348,
-        "matched_event": 9,
-        "diff_sec": 1.65
-       }
-      ],
       "signals": {
+       "start_sec": 1188.0,
+       "step_sec": 1.0,
        "loudness": [
         0.537,
         0.438,
@@ -4434,12 +4048,13 @@
        "loudness_max": 0.954,
        "loudness_mean": 0.717
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 3
        },
-       "gold_diff": -1600.0
+       "gold_diff": -1600.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4465,8 +4080,9 @@
         "text": "그런 사이턴의 디테일을 살리는 게 또 강팀 들간의 대결인 거잖아요. 거기 다시 하나씩만 있을까 뚫었는데 그 뚫린 걸 또 수습을 하려고 하다가 더 말린 거예요. 그렇죠."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1227.0,
+       "step_sec": 1.0,
        "loudness": [
         0.627,
         0.661,
@@ -4491,12 +4107,13 @@
        "loudness_max": 0.729,
        "loudness_mean": 0.641
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 3
        },
-       "gold_diff": -1600.0
+       "gold_diff": -1600.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4528,8 +4145,9 @@
         "text": "귀한과 싸움이 동시에 일어날 수 있어요."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1231.0,
+       "step_sec": 1.0,
        "loudness": [
         0.729,
         0.719,
@@ -4569,12 +4187,13 @@
        "loudness_max": 0.729,
        "loudness_mean": 0.598
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 2,
         "red": 3
        },
-       "gold_diff": -1500.0
+       "gold_diff": -1500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4594,8 +4213,8 @@
       "events": [
        {
         "id": 10,
-        "t": 1250.0,
-        "game_time": "14:00",
+        "t": 1248.887,
+        "game_time": "13:58",
         "type": "kill",
         "subtype": null,
         "team": "blue",
@@ -4608,9 +4227,18 @@
         ],
         "tags": [],
         "source": [
-         "team_kills/blue 2→3 @1250.0"
+         "opgg kill 13:58"
         ],
+        "position": {
+         "x": 9127,
+         "y": 8960
+        },
         "lines": [
+         {
+          "id": 113,
+          "from_sec": 1240.872,
+          "text": "다시 보겠습니다. 미도, 마슨전은 불피해오사실상, 쵸비가 타워."
+         },
          {
           "id": 114,
           "from_sec": 1244.472,
@@ -4630,11 +4258,6 @@
           "id": 117,
           "from_sec": 1251.864,
           "text": "아니, 아까부터 쏘는 게 심각진 않았는데."
-         },
-         {
-          "id": 118,
-          "from_sec": 1254.764,
-          "text": "땅곤청, 물른발."
          }
         ],
         "killer_name": "Ruler",
@@ -4645,7 +4268,8 @@
           "name": "Gumayusi",
           "champion": "케이틀린"
          }
-        ]
+        ],
+        "area": "mid_lane"
        }
       ],
       "lines": [
@@ -4686,88 +4310,9 @@
         "text": "땅곤청, 물른발."
        }
       ],
-      "reference": [
-       {
-        "type": "kill",
-        "t": 838.887,
-        "game_time": "13:58",
-        "side": "blue",
-        "killer": "blue_bot",
-        "position": {
-         "x": 9127,
-         "y": 8960
-        },
-        "killer_name": "Ruler",
-        "killer_champion": "루시안",
-        "area": "mid_lane",
-        "video_sec": 1248.887,
-        "matched_event": 10,
-        "diff_sec": 1.11
-       },
-       {
-        "type": "minute",
-        "t": 840.0,
-        "game_time": "14:00",
-        "positions": {
-         "blue_bot": {
-          "x": 8000,
-          "y": 8291,
-          "area": "mid_lane"
-         },
-         "blue_jungle": {
-          "x": 1775,
-          "y": 7497,
-          "area": "top_lane"
-         },
-         "blue_mid": {
-          "x": 3100,
-          "y": 7848,
-          "area": "blue_jungle"
-         },
-         "blue_support": {
-          "x": 7596,
-          "y": 8062,
-          "area": "mid_lane"
-         },
-         "blue_top": {
-          "x": 394,
-          "y": 461,
-          "area": "blue_base"
-         },
-         "red_bot": {
-          "x": 9127,
-          "y": 8960,
-          "area": "mid_lane"
-         },
-         "red_jungle": {
-          "x": 12100,
-          "y": 9939,
-          "area": "red_jungle"
-         },
-         "red_mid": {
-          "x": 2957,
-          "y": 12714,
-          "area": "top_lane"
-         },
-         "red_support": {
-          "x": 10036,
-          "y": 10587,
-          "area": "mid_lane"
-         },
-         "red_top": {
-          "x": 13714,
-          "y": 8844,
-          "area": "bot_lane"
-         }
-        },
-        "gold": {
-         "blue": 23349,
-         "red": 24286
-        },
-        "video_sec": 1250.0
-       }
-      ],
       "signals": {
+       "start_sec": 1240.0,
+       "step_sec": 1.0,
        "loudness": [
         0.567,
         0.527,
@@ -4828,12 +4373,13 @@
        "loudness_max": 1.0,
        "loudness_mean": 0.774
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 3,
         "red": 3
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4871,8 +4417,9 @@
         "text": "내가 다시 균형 맡아줄게, 룰루 아닙니까?"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1256.0,
+       "step_sec": 1.0,
        "loudness": [
         0.695,
         0.356,
@@ -4906,12 +4453,13 @@
        "loudness_max": 0.923,
        "loudness_mean": 0.608
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 3,
         "red": 3
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -4937,8 +4485,9 @@
         "text": "진짜 이런 플레이가 하나씩 터져 나오면서 서로가 이렇게 한쪽으로 저울이 기우는 것 같으면 다시 이렇게 또 원위치가 되고 있어요"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1263.0,
+       "step_sec": 1.0,
        "loudness": [
         0.923,
         0.753,
@@ -4978,12 +4527,13 @@
        "loudness_max": 0.923,
        "loudness_mean": 0.61
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 3,
         "red": 3
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5046,8 +4596,9 @@
         "text": "이렇게 돼버렸죠. 하나쯤은 또 똑같이 서이게 됐고, 뒤."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1273.0,
+       "step_sec": 1.0,
        "loudness": [
         0.408,
         0.377,
@@ -5126,12 +4677,13 @@
        "loudness_max": 0.702,
        "loudness_mean": 0.45
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 3,
         "red": 3
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5184,8 +4736,9 @@
         "text": "인연 웨이브가 들어오는 걸 기다리고 있었어요"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1295.0,
+       "step_sec": 1.0,
        "loudness": [
         0.417,
         0.608,
@@ -5234,12 +4787,13 @@
        "loudness_max": 0.82,
        "loudness_mean": 0.522
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 3,
         "red": 3
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5259,8 +4813,8 @@
       "events": [
        {
         "id": 11,
-        "t": 1322.0,
-        "game_time": "15:12",
+        "t": 1320.492,
+        "game_time": "15:10",
         "type": "kill",
         "subtype": null,
         "team": "red",
@@ -5274,9 +4828,18 @@
         ],
         "tags": [],
         "source": [
-         "team_kills/red 3→4 @1322.0"
+         "opgg kill 15:10"
         ],
+        "position": {
+         "x": 6529,
+         "y": 7105
+        },
         "lines": [
+         {
+          "id": 137,
+          "from_sec": 1314.04,
+          "text": "하나 100명, 윤런체로가 뺐습니다만 룰러드가 또 저항갑..."
+         },
          {
           "id": 138,
           "from_sec": 1316.76,
@@ -5331,16 +4894,6 @@
           "id": 148,
           "from_sec": 1325.22,
           "text": "어!"
-         },
-         {
-          "id": 149,
-          "from_sec": 1325.64,
-          "text": "어어!"
-         },
-         {
-          "id": 150,
-          "from_sec": 1325.94,
-          "text": "아!"
          }
         ],
         "killer_name": "Kanavi",
@@ -5351,12 +4904,13 @@
           "name": "Ruler",
           "champion": "루시안"
          }
-        ]
+        ],
+        "area": "mid_lane"
        },
        {
         "id": 12,
-        "t": 1329.0,
-        "game_time": "15:19",
+        "t": 1327.738,
+        "game_time": "15:17",
         "type": "kill",
         "subtype": null,
         "team": "blue",
@@ -5369,8 +4923,12 @@
         ],
         "tags": [],
         "source": [
-         "team_kills/blue 3→4 @1329.0"
+         "opgg kill 15:17"
         ],
+        "position": {
+         "x": 4856,
+         "y": 6203
+        },
         "lines": [
          {
           "id": 145,
@@ -5416,11 +4974,6 @@
           "id": 153,
           "from_sec": 1330.872,
           "text": "양서포 딜라이 툴."
-         },
-         {
-          "id": 154,
-          "from_sec": 1333.532,
-          "text": "아니 듀오가 또 마무리를 이렇게 덮췄을 넣어요?"
          }
         ],
         "killer_name": "Duro",
@@ -5431,7 +4984,8 @@
           "name": "Kanavi",
           "champion": "나피리"
          }
-        ]
+        ],
+        "area": "blue_jungle"
        }
       ],
       "lines": [
@@ -5568,105 +5122,9 @@
         "text": "개가 물러오는데 입에다 고무에 던졌어요."
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 900.0,
-        "game_time": "15:00",
-        "positions": {
-         "blue_bot": {
-          "x": 6834,
-          "y": 7059,
-          "area": "mid_lane"
-         },
-         "blue_jungle": {
-          "x": 8344,
-          "y": 2344,
-          "area": "blue_jungle"
-         },
-         "blue_mid": {
-          "x": 1063,
-          "y": 10258,
-          "area": "top_lane"
-         },
-         "blue_support": {
-          "x": 6452,
-          "y": 7479,
-          "area": "mid_lane"
-         },
-         "blue_top": {
-          "x": 12159,
-          "y": 1659,
-          "area": "bot_lane"
-         },
-         "red_bot": {
-          "x": 6465,
-          "y": 8505,
-          "area": "river"
-         },
-         "red_jungle": {
-          "x": 6810,
-          "y": 8604,
-          "area": "river"
-         },
-         "red_mid": {
-          "x": 1583,
-          "y": 11203,
-          "area": "top_lane"
-         },
-         "red_support": {
-          "x": 6069,
-          "y": 8215,
-          "area": "river"
-         },
-         "red_top": {
-          "x": 13024,
-          "y": 2799,
-          "area": "bot_lane"
-         }
-        },
-        "gold": {
-         "blue": 25447,
-         "red": 26326
-        },
-        "video_sec": 1310.0
-       },
-       {
-        "type": "kill",
-        "t": 910.492,
-        "game_time": "15:10",
-        "side": "red",
-        "killer": "red_jungle",
-        "position": {
-         "x": 6529,
-         "y": 7105
-        },
-        "killer_name": "Kanavi",
-        "killer_champion": "나피리",
-        "area": "mid_lane",
-        "video_sec": 1320.492,
-        "matched_event": 11,
-        "diff_sec": 1.51
-       },
-       {
-        "type": "kill",
-        "t": 917.738,
-        "game_time": "15:17",
-        "side": "blue",
-        "killer": "blue_support",
-        "position": {
-         "x": 4856,
-         "y": 6203
-        },
-        "killer_name": "Duro",
-        "killer_champion": "밀리오",
-        "area": "blue_jungle",
-        "video_sec": 1327.738,
-        "matched_event": 12,
-        "diff_sec": 1.26
-       }
-      ],
       "signals": {
+       "start_sec": 1308.0,
+       "step_sec": 1.0,
        "loudness": [
         0.761,
         0.544,
@@ -5766,12 +5224,13 @@
        "loudness_max": 1.0,
        "loudness_mean": 0.764
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1100.0
+       "gold_diff": -1100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5803,8 +5262,9 @@
         "text": "그렇습니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1337.0,
+       "step_sec": 1.0,
        "loudness": [
         0.756,
         0.701,
@@ -5832,12 +5292,13 @@
        "loudness_max": 0.756,
        "loudness_mean": 0.646
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1100.0
+       "gold_diff": -1100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5887,8 +5348,9 @@
         "text": "한쪽이 좀 깔끔하게 손해를 보나 싶으며 항상 그게 또 다시 맞춰집니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1342.0,
+       "step_sec": 1.0,
        "loudness": [
         0.599,
         0.825,
@@ -5931,12 +5393,13 @@
        "loudness_max": 0.825,
        "loudness_mean": 0.458
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1200.0
+       "gold_diff": -1200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -5955,8 +5418,9 @@
       ],
       "events": [],
       "lines": [],
-      "reference": [],
       "signals": {
+       "start_sec": 1352.0,
+       "step_sec": 1.0,
        "loudness": [
         0.464,
         0.343,
@@ -5975,12 +5439,13 @@
        "loudness_max": 0.533,
        "loudness_mean": 0.447
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1100.0
+       "gold_diff": -1100.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6036,71 +5501,9 @@
         "text": "이쪽에서에는 캐년이 두도권을 주장하는 거죠."
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 960.0,
-        "game_time": "16:00",
-        "positions": {
-         "blue_bot": {
-          "x": 7559,
-          "y": 7492,
-          "area": "mid_lane"
-         },
-         "blue_jungle": {
-          "x": 4488,
-          "y": 9914,
-          "area": "baron_pit"
-         },
-         "blue_mid": {
-          "x": 4037,
-          "y": 9898,
-          "area": "baron_pit"
-         },
-         "blue_support": {
-          "x": 9343,
-          "y": 6519,
-          "area": "river"
-         },
-         "blue_top": {
-          "x": 10731,
-          "y": 1280,
-          "area": "bot_lane"
-         },
-         "red_bot": {
-          "x": 10321,
-          "y": 10579,
-          "area": "mid_lane"
-         },
-         "red_jungle": {
-          "x": 12719,
-          "y": 11667,
-          "area": "red_base"
-         },
-         "red_mid": {
-          "x": 4335,
-          "y": 14056,
-          "area": "top_lane"
-         },
-         "red_support": {
-          "x": 10404,
-          "y": 10691,
-          "area": "mid_lane"
-         },
-         "red_top": {
-          "x": 10958,
-          "y": 1473,
-          "area": "bot_lane"
-         }
-        },
-        "gold": {
-         "blue": 27595,
-         "red": 28570
-        },
-        "video_sec": 1370.0
-       }
-      ],
       "signals": {
+       "start_sec": 1354.0,
+       "step_sec": 1.0,
        "loudness": [
         0.533,
         0.366,
@@ -6161,12 +5564,13 @@
        "loudness_max": 0.675,
        "loudness_mean": 0.596
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6182,22 +5586,23 @@
       "game_time": null,
       "events": [
        {
-        "id": "opgg-13",
+        "id": 13,
         "t": 1373.593,
         "game_time": "16:03",
         "type": "objective",
         "subtype": "herald",
         "team": "blue",
         "killer": "blue_jungle",
-        "killer_name": "Canyon",
-        "killer_champion": "바이",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "opgg"
+         "opgg herald 16:03"
         ],
-        "filled": true,
+        "position": {
+         "x": 4642,
+         "y": 9980
+        },
         "lines": [
          {
           "id": 168,
@@ -6219,7 +5624,11 @@
           "from_sec": 1375.288,
           "text": "서로 대치 자체는 할 만했는데 그 과정에서 딜라잇이"
          }
-        ]
+        ],
+        "killer_name": "Canyon",
+        "killer_champion": "바이",
+        "victims_detail": [],
+        "area": "baron_pit"
        }
       ],
       "lines": [
@@ -6296,28 +5705,9 @@
         "text": "젠지는 이번 용에 관심이 없거든요."
        }
       ],
-      "reference": [
-       {
-        "t": 963.593,
-        "game_time": "16:03",
-        "type": "herald",
-        "subtype": null,
-        "side": "blue",
-        "killer": "blue_jungle",
-        "position": {
-         "x": 4642,
-         "y": 9980
-        },
-        "area": "baron_pit",
-        "killer_name": "Canyon",
-        "killer_champion": "바이",
-        "video_sec": 1373.593,
-        "matched_event": null,
-        "diff_sec": null,
-        "filled_event": "opgg-13"
-       }
-      ],
       "signals": {
+       "start_sec": 1370.0,
+       "step_sec": 1.0,
        "loudness": [
         0.606,
         0.797,
@@ -6435,12 +5825,13 @@
        "loudness_max": 0.92,
        "loudness_mean": 0.477
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1000.0
+       "gold_diff": -1000.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6466,8 +5857,9 @@
         "text": "그래서 하나씩 명은 먹고 그 대신 사이드 쪽에서 젠지도 약간 돈을 벌 생각으로 보입니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1405.0,
+       "step_sec": 1.0,
        "loudness": [
         0.244,
         0.445,
@@ -6489,12 +5881,13 @@
        "loudness_max": 0.464,
        "loudness_mean": 0.392
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -700.0
+       "gold_diff": -700.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6532,8 +5925,9 @@
         "text": "이게 뱀픽 단계 때 포니의 설이 한번 말씀하셨는데"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1408.0,
+       "step_sec": 1.0,
        "loudness": [
         0.464,
         0.352,
@@ -6582,12 +5976,13 @@
        "loudness_max": 0.652,
        "loudness_mean": 0.47
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6613,8 +6008,9 @@
         "text": "결국에 지금 라이너들이 APB 중에 높아서"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1420.0,
+       "step_sec": 1.0,
        "loudness": [
         0.525,
         0.485
@@ -6630,12 +6026,13 @@
        "loudness_max": 0.525,
        "loudness_mean": 0.505
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -500.0
+       "gold_diff": -500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6661,8 +6058,9 @@
         "text": "달리오픽이 사이드에 있으면 안정감이 굉장히 좋은 편이긴 해요"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1421.0,
+       "step_sec": 1.0,
        "loudness": [
         0.485,
         0.306,
@@ -6681,12 +6079,13 @@
        "loudness_max": 0.498,
        "loudness_mean": 0.43
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -800.0
+       "gold_diff": -800.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -6705,30 +6104,24 @@
       ],
       "events": [
        {
-        "id": 13,
-        "t": 1429.5,
-        "game_time": null,
+        "id": 14,
+        "t": 1423.872,
+        "game_time": "16:53",
         "type": "objective",
         "subtype": "dragon:water",
         "team": "red",
-        "killer": null,
+        "killer": "red_jungle",
         "victims": [],
         "assists": [],
         "tags": [],
         "source": [
-         "banner 'OCEAN DRAKE' @1429.5"
+         "opgg dragon 16:53"
         ],
+        "position": {
+         "x": 9858,
+         "y": 4421
+        },
         "lines": [
-         {
-          "id": 183,
-          "from_sec": 1411.244,
-          "text": "자, 지금 초비가 위쪽에 있다는 것은 그런 본인들의 전수를 읽을 수 있는 부분이긴 합니다."
-         },
-         {
-          "id": 184,
-          "from_sec": 1416.524,
-          "text": "재우스와 맞서고 있습니다."
-         },
          {
           "id": 185,
           "from_sec": 1417.976,
@@ -6748,24 +6141,12 @@
           "id": 188,
           "from_sec": 1427.32,
           "text": "웬만하면 잘 안 뚫립니다."
-         },
-         {
-          "id": 189,
-          "from_sec": 1429.0,
-          "text": "그러니까 그런 거 대비 럼블 같은 경우에는"
-         },
-         {
-          "id": 190,
-          "from_sec": 1431.2,
-          "text": "3명, 3명이 뒤에 주장했다까지!"
-         },
-         {
-          "id": 191,
-          "from_sec": 1433.88,
-          "text": "어디로 갑니까?"
          }
         ],
-        "victims_detail": []
+        "killer_name": "Kanavi",
+        "killer_champion": "나피리",
+        "victims_detail": [],
+        "area": "dragon_pit"
        }
       ],
       "lines": [
@@ -6828,89 +6209,9 @@
         "text": "좀 많이 무서워요."
        }
       ],
-      "reference": [
-       {
-        "t": 1013.872,
-        "game_time": "16:53",
-        "type": "dragon",
-        "subtype": "water",
-        "side": "red",
-        "killer": "red_jungle",
-        "position": {
-         "x": 9858,
-         "y": 4421
-        },
-        "area": "dragon_pit",
-        "killer_name": "Kanavi",
-        "killer_champion": "나피리",
-        "video_sec": 1423.872,
-        "matched_event": 13,
-        "diff_sec": 5.63
-       },
-       {
-        "type": "minute",
-        "t": 1020.0,
-        "game_time": "17:00",
-        "positions": {
-         "blue_bot": {
-          "x": 5163,
-          "y": 4688,
-          "area": "mid_lane"
-         },
-         "blue_jungle": {
-          "x": 6655,
-          "y": 4725,
-          "area": "blue_jungle"
-         },
-         "blue_mid": {
-          "x": 2400,
-          "y": 12374,
-          "area": "river"
-         },
-         "blue_support": {
-          "x": 2956,
-          "y": 2383,
-          "area": "blue_base"
-         },
-         "blue_top": {
-          "x": 9484,
-          "y": 942,
-          "area": "bot_lane"
-         },
-         "red_bot": {
-          "x": 8823,
-          "y": 4591,
-          "area": "dragon_pit"
-         },
-         "red_jungle": {
-          "x": 9086,
-          "y": 2095,
-          "area": "bot_lane"
-         },
-         "red_mid": {
-          "x": 11208,
-          "y": 1847,
-          "area": "bot_lane"
-         },
-         "red_support": {
-          "x": 8626,
-          "y": 2086,
-          "area": "bot_lane"
-         },
-         "red_top": {
-          "x": 3066,
-          "y": 12950,
-          "area": "top_lane"
-         }
-        },
-        "gold": {
-         "blue": 29660,
-         "red": 30586
-        },
-        "video_sec": 1430.0
-       }
-      ],
       "signals": {
+       "start_sec": 1423.0,
+       "step_sec": 1.0,
        "loudness": [
         0.498,
         0.56,
@@ -6974,12 +6275,13 @@
        "loudness_max": 0.859,
        "loudness_mean": 0.55
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -800.0
+       "gold_diff": -800.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7017,8 +6319,9 @@
         "text": "살았어도 손에인 거죠, 결국."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1440.0,
+       "step_sec": 1.0,
        "loudness": [
         0.299,
         0.44,
@@ -7046,12 +6349,13 @@
        "loudness_max": 0.764,
        "loudness_mean": 0.537
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -800.0
+       "gold_diff": -800.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7077,8 +6381,9 @@
         "text": "자, 손목까지 껴야 됩니다."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1445.0,
+       "step_sec": 1.0,
        "loudness": [
         0.577,
         0.411,
@@ -7103,12 +6408,13 @@
        "loudness_max": 0.625,
        "loudness_mean": 0.417
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1000.0
+       "gold_diff": -1000.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7134,8 +6440,9 @@
         "text": "그러니까 바텀 커버를 너무 과하게 가기 보다는"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1449.0,
+       "step_sec": 1.0,
        "loudness": [
         0.0,
         0.487
@@ -7151,12 +6458,13 @@
        "loudness_max": 0.487,
        "loudness_mean": 0.243
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -900.0
+       "gold_diff": -900.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7175,7 +6483,7 @@
       ],
       "events": [
        {
-        "id": 14,
+        "id": 15,
         "t": 1452.0,
         "game_time": "17:22",
         "type": "tower",
@@ -7227,8 +6535,9 @@
         "text": "상대를 따라가기보다 우리가 볼 수 있는 이득을 보자라고 판단을 내린건데"
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1450.0,
+       "step_sec": 1.0,
        "loudness": [
         0.487,
         0.582,
@@ -7256,12 +6565,13 @@
        "loudness_max": 0.711,
        "loudness_mean": 0.553
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1500.0
+       "gold_diff": -1500.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7329,8 +6639,9 @@
         "text": "100%."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1455.0,
+       "step_sec": 1.0,
        "loudness": [
         0.711,
         0.557,
@@ -7418,12 +6729,13 @@
        "loudness_max": 0.773,
        "loudness_mean": 0.524
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1600.0000000000036
+       "gold_diff": -1600.0000000000036,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7455,71 +6767,9 @@
         "text": "방금 전 빠지느라고 타워를 잃었습니다만 본인의 전면도 소모된 기인이고요."
        }
       ],
-      "reference": [
-       {
-        "type": "minute",
-        "t": 1080.0,
-        "game_time": "18:00",
-        "positions": {
-         "blue_bot": {
-          "x": 6100,
-          "y": 8252,
-          "area": "river"
-         },
-         "blue_jungle": {
-          "x": 4843,
-          "y": 6176,
-          "area": "blue_jungle"
-         },
-         "blue_mid": {
-          "x": 1724,
-          "y": 5625,
-          "area": "top_lane"
-         },
-         "blue_support": {
-          "x": 6026,
-          "y": 7002,
-          "area": "mid_lane"
-         },
-         "blue_top": {
-          "x": 11169,
-          "y": 1646,
-          "area": "bot_lane"
-         },
-         "red_bot": {
-          "x": 7210,
-          "y": 9170,
-          "area": "red_jungle"
-         },
-         "red_jungle": {
-          "x": 6552,
-          "y": 12437,
-          "area": "red_jungle"
-         },
-         "red_mid": {
-          "x": 1508,
-          "y": 10861,
-          "area": "top_lane"
-         },
-         "red_support": {
-          "x": 4864,
-          "y": 8509,
-          "area": "blue_jungle"
-         },
-         "red_top": {
-          "x": 13855,
-          "y": 11324,
-          "area": "red_base"
-         }
-        },
-        "gold": {
-         "blue": 31384,
-         "red": 33149
-        },
-        "video_sec": 1490.0
-       }
-      ],
       "signals": {
+       "start_sec": 1480.0,
+       "step_sec": 1.0,
        "loudness": [
         0.709,
         0.745,
@@ -7562,12 +6812,13 @@
        "loudness_max": 0.754,
        "loudness_mean": 0.452
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1800.0
+       "gold_diff": -1800.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7593,8 +6844,9 @@
         "text": "그리고 따박따박 오리아나가 그때 많이 먹고 있죠."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1490.0,
+       "step_sec": 1.0,
        "loudness": [
         0.508,
         0.849,
@@ -7613,12 +6865,13 @@
        "loudness_max": 0.849,
        "loudness_mean": 0.677
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -1700.0
+       "gold_diff": -1700.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7637,7 +6890,7 @@
       ],
       "events": [
        {
-        "id": 15,
+        "id": 16,
         "t": 1495.0,
         "game_time": "18:05",
         "type": "tower",
@@ -7689,8 +6942,9 @@
         "text": "그래서 이게 1년의 그 서로의 탑..."
        }
       ],
-      "reference": [],
       "signals": {
+       "start_sec": 1492.0,
+       "step_sec": 1.0,
        "loudness": [
         0.673,
         0.506,
@@ -7726,12 +6980,13 @@
        "loudness_max": 0.731,
        "loudness_mean": 0.557
       },
-      "screen": {
+      "state": {
        "kills": {
         "blue": 4,
         "red": 4
        },
-       "gold_diff": -2200.0
+       "gold_diff": -2200.0,
+       "gold_source": "screen"
       }
      },
      "children": []
@@ -7739,5 +6994,5 @@
    ]
   }
  ],
- "created_at": "2026-11-22T05:57:08+00:00"
+ "created_at": "2026-11-23T07:25:08+00:00"
 }
