@@ -158,6 +158,23 @@ def game_to_video(clock: list[dict], g: float) -> float | None:
     return None
 
 
+REF_SLACK_SEC = 20.0  # clock 구간 밖이어도 이 초 안이면 그 구간 차이로 옮긴다 (리플레이·캠 동안에도 경기는 흐른다)
+
+
+def to_video(clock: list[dict], g: float, slack: float = REF_SLACK_SEC) -> float | None:
+    """경기 g 초 → 영상 초. clock 구간 안이면 그대로, 아니면 경기 시각이 가장 가까운 구간(slack 안)의 차이로."""
+    v = game_to_video(clock, g)
+    if v is not None:
+        return v
+    best = None
+    for c in clock:
+        g0, g1 = c["game_start_sec"], c["game_start_sec"] + c["end_sec"] - c["start_sec"]
+        d = g0 - g if g < g0 else g - g1 if g > g1 else 0.0
+        if d <= slack and (best is None or d < best[0]):
+            best = (d, g - c["game_start_sec"] + c["start_sec"])
+    return best[1] if best else None
+
+
 def build_game(header: dict | None, segments: dict | None, clock: list[dict]) -> dict:
     """경기 구간. segments 의 game(화면 판별)이 있으면 그것, 없으면 clock 으로."""
     res = (header or {}).get("result") or {}
@@ -207,7 +224,8 @@ def build_events(timeline: dict | None, players: dict, segs: list[dict], p: dict
                     "game_time": e.get("game_time"), "type": e["type"], "subtype": e.get("subtype"), "team": e["team"],
                     "killer": killer[0] if killer else None, "victims": to_slots(pl.get("victims")),
                     "assists": to_slots(pl.get("assists")), "tags": [], "segment": kind_at(segs, e["end_sec"]),
-                    "line_ids": e.get("line_ids", []), "source": e.get("evidence", [])})
+                    "line_ids": e.get("line_ids", []), "source": e.get("evidence", []),
+                    **({"position": e["position"]} if e.get("position") else {})})
     tag_kills(out, p)
     return out
 

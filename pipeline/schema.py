@@ -160,10 +160,12 @@ EventType = Literal["kill", "tower", "objective"]
 
 
 class TimelineEvent(TimeSpan):
-    """화면 숫자(팀 킬·타워·오브젝트 수)가 오른 시점. 숏폼 구간의 기준점.
+    """경기 이벤트. 숏폼 구간의 기준점.
 
-    start_sec: 이벤트가 일어났을 수 있는 가장 이른 시각 (앞 값이 마지막으로 읽힌 때).
-    end_sec: 새 값이 처음 읽힌 시각. 화면이 계속 보였으면 둘이 거의 같다.
+    source=opgg: op.gg 기록(경기 시각)을 화면 경기 시계로 영상 초로 옮긴 것. start_sec = end_sec = 그 시각.
+    source=ocr: 화면 숫자(팀 킬·타워·오브젝트 수)가 오른 시점 (op.gg 가 없을 때, 타워는 항상).
+      start_sec: 이벤트가 일어났을 수 있는 가장 이른 시각 (앞 값이 마지막으로 읽힌 때).
+      end_sec: 새 값이 처음 읽힌 시각. 화면이 계속 보였으면 둘이 거의 같다.
     """
 
     id: int
@@ -176,13 +178,19 @@ class TimelineEvent(TimeSpan):
     game_time: str | None = None  # 새 값이 읽힌 시점의 경기 시계 (mm:ss)
     players: dict[str, list[str]] = {}  # {"killer": [...], "victims": [...], "assists": [...]} KDA 변화로 찾은 것만
     line_ids: list[int] = []      # 앞뒤 대사 (asr)
-    evidence: list[str] = []      # 근거가 된 OCR 변화 ("team_kills/red 2→3 @386.0")
+    evidence: list[str] = []      # 근거 ("team_kills/red 2→3 @386.0", "opgg kill 15:10")
+    source: Literal["opgg", "ocr"] = "ocr"
+    position: dict | None = None  # op.gg 맵 좌표 {x, y}
+    ocr_lag_sec: float | None = None  # op.gg 킬: 화면 팀 킬 수가 오른 시각 - 이 시각 (동기화 검증, 정상 1~2초)
 
 
 class TimelineResult(BaseModel):
     events: list[TimelineEvent]
     teams: dict[str, str] = {}    # {진영: 팀 이름}
     players: dict[str, str] = {}  # {진영_포지션: 선수 이름}
+    source: Literal["opgg", "ocr"] = "ocr"  # 킬·오브젝트를 어디서 만들었나 (타워는 항상 ocr)
+    unmapped: list[str] = []      # 영상 초로 옮기지 못한 op.gg 기록 (분석 범위 밖 제외) "kill 15:10"
+    sync: dict = {}               # 시계 동기화 검증 {checked, matched, lag_median_sec, lag_min_sec, lag_max_sec, outliers}
 
 
 # ---------------------------------------------------------------- header
@@ -230,3 +238,4 @@ class ContextResult(BaseModel):
     segments: list[dict] = []   # [{id, start_sec, end_sec, kind, transition_in, game_time}]
     events: list[dict] = []     # [{id, t, start_sec, end_sec, game_time, type, team, killer, victims, assists, tags, segment, line_ids, source}]
     signals: dict = {}          # {step_sec, start_sec, loudness, gold_diff, cut_rate, kind}
+

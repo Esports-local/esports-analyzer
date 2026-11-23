@@ -1,9 +1,19 @@
-"""timeline 단계: 화면 숫자(팀 킬 · 타워 · 오브젝트 수)가 오른 시점을 경기 이벤트로 뽑는다.
+"""timeline 단계: 경기 이벤트(킬 · 오브젝트 · 타워)를 영상 초로 뽑는다. 숏폼은 이 이벤트를 기준점으로 구간을 잡는다.
 
-LLM 을 쓰지 않는다. roi_ocr 결과만으로 코드가 만들기 때문에 같은 입력이면 항상 같은 결과다.
-숏폼은 이 이벤트를 기준점으로 구간을 잡는다.
+LLM 을 쓰지 않는다. 같은 입력이면 항상 같은 결과다.
 
-입력: work/roi_ocr.json (필수), work/asr.json (있으면 앞뒤 대사를 붙임)
+입력: work/roi_ocr.json (필수), work/opgg_timeline.json (header 단계, 있으면), work/asr.json (있으면 앞뒤 대사)
+
+이벤트 원천 (11-23 결정: VOD 라 op.gg 기록이 이미 있으므로 화면으로 다시 만들지 않는다)
+- op.gg 상세 기록이 있으면: 킬(시각·팀·킬한 선수·위치) · 오브젝트(용 종류·유충·전령·바론…)는 op.gg.
+  경기 시각 → 영상 초는 화면 경기 시계(context.build_clock)로. 리플레이 동안도 경기는 흐르므로 가까운 시계 구간
+  (opgg_slack_sec 안)의 차이로 옮긴다. 킬당한 선수 · 도움은 op.gg 에 없어 화면 KDA 변화로 찾는다.
+- 타워는 op.gg 에 시각이 없어 항상 화면 숫자로.
+- op.gg 가 없으면 (오류 · 상세 기록 없음) 아래 화면 숫자 방식으로 킬 · 오브젝트도 만든다.
+- 동기화 검증(sync): op.gg 킬마다 같은 진영 화면 팀 킬 수가 오른 시각과의 차이(ocr_lag_sec). 화면 점수는 1~2초 늦게
+  바뀌므로 sync_lag_ok 범위 밖이면 시계가 어긋난 것으로 outliers 에 남긴다.
+
+화면 숫자 방식
 
 잡음 정리 (roi_ocr 구간은 1장짜리 오독이 섞여 있다)
 - min_samples 장 미만으로 이어진 구간은 버린다
@@ -29,6 +39,7 @@ import logging
 import re
 from pathlib import Path
 
+from pipeline.game import context as ctx
 from pipeline.io import save_stage, stage_path
 from pipeline.schema import TimelineEvent, TimelineResult
 
@@ -63,7 +74,12 @@ DEFAULT_PARAMS = {
     "banner_merge_sec": 30.0,  # 같은 오브젝트 배너를 하나로 묶을 범위
     "icon_before_sec": 10.0,   # 용 아이콘 비교: 배너 이만큼 앞 값과
     "icon_after_sec": 8.0,     # 배너 이만큼 뒤 값을 비교
+    "use_opgg": True,          # op.gg 상세 기록이 있으면 킬·오브젝트를 op.gg 로
+    "opgg_slack_sec": 60.0,    # 시계 구간 밖(리플레이·캠) op.gg 기록을 이만큼 떨어진 시계 구간까지 옮긴다
+    "sync_search_sec": [-2.0, 8.0],  # op.gg 킬 시각 기준 화면 팀 킬 수 변화를 찾을 범위
+    "sync_lag_ok": [-0.5, 4.0],      # 정상으로 보는 차이 (화면 - op.gg)
 }
+OPGG_OBJECTS = {"grubs": "grubs", "herald": "herald", "baron": "baron", "elder": "elder", "atakhan": "atakhan"}
 DRAKES = {"OCEAN": "water", "INFERNAL": "fire", "MOUNTAIN": "earth", "CLOUD": "air", "HEXTECH": "hextech",
           "CHEMTECH": "chemtech"}
 
@@ -89,10 +105,121 @@ def run(video: Path, work_dir: Path, params: dict | None = None) -> Path:
     p = {**DEFAULT_PARAMS, **(params or {})}
     roi = json.loads(stage_path(work_dir, "roi_ocr").read_text(encoding="utf-8"))["result"]
     lines = _load_lines(work_dir)
-    result = build_timeline(roi["runs"], lines, p, _subtypes(roi.get("layout")))
-    log.info("[timeline] 이벤트 %d개 (%s)", len(result.events),
-             ", ".join(f"{t} {sum(e.type == t for e in result.events)}" for t in COUNTERS.values()))
+    ref = load_opgg(work_dir) if p["use_opgg"] else None
+    if ref:
+        result = build_timeline_opgg(roi["runs"], lines, ref, p)
+    else:
+        log.info("[timeline] op.gg 상세 기록이 없어 화면 숫자로 만듭니다")
+        result = build_timeline(roi["runs"], lines, p, _subtypes(roi.get("layout")))
+    log.info("[timeline] 이벤트 %d개 (%s, 원천 %s)%s", len(result.events),
+             ", ".join(f"{t} {sum(e.type == t for e in result.events)}" for t in COUNTERS.values()), result.source,
+             f", 영상 초로 못 옮긴 op.gg 기록 {result.unmapped}" if result.unmapped else "")
     return save_stage(work_dir, "timeline", result, p)
+
+
+def load_opgg(work_dir: Path) -> dict | None:
+    """op.gg 세트 기록. 없거나 오류거나 킬·오브젝트가 비었으면 None."""
+    path = stage_path(work_dir, "opgg_timeline")
+    if not path.exists():
+        return None
+    ref = json.loads(path.read_text(encoding="utf-8")).get("result") or {}
+    if ref.get("error") or not ref.get("detailed") or not (ref.get("kills") or ref.get("objectives")):
+        return None
+    return ref
+
+
+def build_timeline_opgg(runs: list[dict], lines: list[dict], ref: dict, p: dict) -> TimelineResult:
+    """op.gg 킬·오브젝트(경기 시각) → 영상 초 이벤트 + 화면 숫자 타워 (파일 입출력 없음, 테스트용)."""
+    cp = ctx.DEFAULT_PARAMS
+    clock = ctx.build_clock(runs, cp["clock_tolerance_sec"], cp["clock_min_sec"], cp["clock_gap_sec"])
+    statics = static_values(runs)
+    teams, names = statics.get("team", {}), statics.get("player_name", {})
+    kda = _kda_series(runs, p["min_samples"])
+    span = (min((r["start_sec"] for r in runs), default=0.0), max((r["end_sec"] for r in runs), default=0.0))
+
+    raw, unmapped, count = [], [], {}
+    items = [("kill", k) for k in ref.get("kills", [])] + [("objective", o) for o in ref.get("objectives", [])]
+    for etype, it in sorted(items, key=lambda x: x[1]["t"]):
+        side = it.get("side")
+        key = (etype, side)
+        before = count.get(key, 0)
+        count[key] = before + 1
+        v = ctx.to_video(clock, it["t"], p["opgg_slack_sec"])
+        if v is None:
+            if clock and clock[0]["game_start_sec"] <= it["t"] <= clock[-1]["game_start_sec"] + clock[-1]["end_sec"] - clock[-1]["start_sec"]:
+                unmapped.append(f"{etype} {it.get('game_time')}")  # 분석 범위 안인데 못 옮김
+            continue
+        if not span[0] <= v < span[1]:
+            continue
+        sub = None if etype == "kill" else _opgg_subtype(it)
+        raw.append((v, etype, sub, side, before, it, [f"opgg {it.get('type', etype)} {it.get('game_time')}"]))
+
+    events: list[TimelineEvent] = []
+    for v, etype, sub, side, before, it, evidence in raw:
+        ev = TimelineEvent(id=0, type=etype, subtype=sub, team=side, team_name=teams.get(side) if side else None,
+                           start_sec=round(v, 3), end_sec=round(v, 3), value_before=before, value_after=before + 1,
+                           game_time=it.get("game_time"), evidence=evidence, source="opgg", position=it.get("position"))
+        killer = it.get("killer")
+        if killer:
+            ev.players["killer"] = [names.get(killer, killer)]
+        if etype == "kill":
+            found = _kill_players(kda, names, side, v, v, p["kda_window"])
+            ev.players.update({k: found[k] for k in ("victims", "assists") if found.get(k)})
+        events.append(ev)
+
+    for slot in ("blue", "red"):  # 타워: op.gg 에 시각이 없어 화면 숫자로
+        series = [r for r in runs if r["tag"] == "towers" and r["slot"] == slot]
+        for before, after, start, end, evidence in counter_steps(series, p["min_samples"], p["max_jump"]):
+            events.append(TimelineEvent(id=0, type="tower", team=slot, team_name=teams.get(slot), start_sec=start,
+                                        end_sec=end, value_before=before, value_after=after,
+                                        game_time=_game_time_at(runs, end, p["min_samples"]), evidence=evidence))
+
+    events.sort(key=lambda e: (e.end_sec, e.team or ""))
+    for i, ev in enumerate(events, 1):
+        ev.id = i
+        ev.line_ids = [ln["id"] for ln in lines
+                       if ln["end_sec"] >= ev.start_sec - p["line_window"] and ln["start_sec"] <= ev.end_sec + p["line_window"]]
+    sync = check_sync(events, runs, p)
+    return TimelineResult(events=events, teams=teams, players=names, source="opgg", unmapped=unmapped, sync=sync)
+
+
+def check_sync(events: list[TimelineEvent], runs: list[dict], p: dict) -> dict:
+    """op.gg 킬 ↔ 화면 팀 킬 수 변화. 킬마다 ocr_lag_sec 를 채우고 요약을 돌려준다."""
+    lo, hi = p["sync_search_sec"]
+    ok_lo, ok_hi = p["sync_lag_ok"]
+    steps = {s: [st[3] for st in counter_steps([r for r in runs if r["tag"] == "team_kills" and r["slot"] == s],
+                                               p["min_samples"], p["max_jump"])] for s in ("blue", "red")}
+    used: set = set()
+    lags, outliers, checked = [], [], 0
+    for ev in events:
+        if ev.type != "kill" or ev.source != "opgg" or ev.team not in steps:
+            continue
+        checked += 1
+        near = [(abs(t - ev.end_sec - 1.5), t) for t in steps[ev.team]
+                if (ev.team, t) not in used and lo <= t - ev.end_sec <= hi]
+        if not near:
+            continue
+        t = min(near)[1]
+        used.add((ev.team, t))
+        ev.ocr_lag_sec = round(t - ev.end_sec, 2)
+        lags.append(ev.ocr_lag_sec)
+        if not ok_lo <= ev.ocr_lag_sec <= ok_hi:
+            outliers.append({"event": ev.id, "game_time": ev.game_time, "lag_sec": ev.ocr_lag_sec})
+    if not lags:
+        return {"checked": checked, "matched": 0}
+    s = sorted(lags)
+    return {"checked": checked, "matched": len(lags), "lag_median_sec": s[len(s) // 2],
+            "lag_min_sec": s[0], "lag_max_sec": s[-1], "outliers": outliers}
+
+
+def _opgg_subtype(o: dict) -> str | None:
+    """op.gg 오브젝트 → 화면 방식과 같은 subtype (dragon:water · grubs · baron …)."""
+    kind, sub = o.get("type"), o.get("subtype")
+    if kind == "dragon":
+        if sub == "elder":
+            return "elder"
+        return f"dragon:{sub}" if sub else "dragon"
+    return OPGG_OBJECTS.get(kind, kind)
 
 
 def _subtypes(layout: str | None) -> dict:

@@ -51,6 +51,42 @@ class BuildTimelineTest(unittest.TestCase):
         self.assertEqual(ev.line_ids, [1])
 
 
+class OpggTimelineTest(unittest.TestCase):
+    """op.gg 킬·오브젝트를 화면 경기 시계로 영상 초로 옮긴다. 경기 0초 = 영상 100초."""
+
+    def setUp(self):
+        self.runs = [run("game_time", "", 100 + s, 101 + s, f"{s // 60:02d}:{s % 60:02d}") for s in range(0, 60)]
+        self.runs += [run("game_time", "", 200 + s, 201 + s, f"{(100 + s) // 60:02d}:{(100 + s) % 60:02d}")
+                      for s in range(0, 60)]  # 160~200초는 리플레이 (시계 없음)
+        self.runs += [run("player_name", "blue_bot", 100, 260, "GEN Ruler"),
+                      run("player_name", "red_jungle", 100, 260, "HLE Kanavi"),
+                      run("kda", "blue_bot", 100, 131, "0/0/0"), run("kda", "blue_bot", 131, 260, "0/1/0"),
+                      run("towers", "red", 100, 240, "0"), run("towers", "red", 240, 260, "1"),
+                      run("team_kills", "red", 100, 131.5, "0"), run("team_kills", "red", 131.5, 260, "1")]
+        self.ref = {"detailed": True,
+                    "kills": [{"t": 30.0, "game_time": "00:30", "side": "red", "killer": "red_jungle",
+                               "position": {"x": 1, "y": 2}},
+                              {"t": 500.0, "game_time": "08:20", "side": "red", "killer": "red_jungle"}],  # 범위 밖
+                    "objectives": [{"t": 80.0, "game_time": "01:20", "type": "dragon", "subtype": "water",
+                                    "side": "blue", "killer": "blue_bot"}]}
+
+    def test_events_from_opgg(self):
+        from pipeline.game.timeline import build_timeline_opgg
+        tl = build_timeline_opgg(self.runs, [], self.ref, DEFAULT_PARAMS)
+        self.assertEqual(tl.source, "opgg")
+        got = [(e.type, e.subtype, e.team, e.end_sec, e.source) for e in tl.events]
+        self.assertEqual(got, [("kill", None, "red", 130.0, "opgg"),
+                               ("objective", "dragon:water", "blue", 180.0, "opgg"),  # 리플레이 중 → 앞 시계로
+                               ("tower", None, "red", 240, "ocr")])
+        kill = tl.events[0]
+        self.assertEqual(kill.players, {"killer": ["HLE Kanavi"], "victims": ["GEN Ruler"]})  # 피해자는 KDA 로
+        self.assertEqual(kill.position, {"x": 1, "y": 2})
+        self.assertEqual(tl.unmapped, [])
+        # 동기화 검증: 화면 팀 킬 수는 1.5초 늦게 오름
+        self.assertEqual(kill.ocr_lag_sec, 1.5)
+        self.assertEqual((tl.sync["checked"], tl.sync["matched"], tl.sync["outliers"]), (1, 1, []))
+
+
 if __name__ == "__main__":
     unittest.main()
 
