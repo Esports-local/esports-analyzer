@@ -31,6 +31,7 @@ STAGES = [
     "asr",         # faster-whisper (내장 Silero VAD, word timestamps) -> 해설 대사 줄
     "timeline",    # 화면 숫자(팀 킬·타워·오브젝트) 변화 → 경기 이벤트 (숏폼 기준점), LLM 없음
     "context",     # 바디: 영상 기준 경기 데이터 (시계·구간 종류·이벤트 태그·초 단위 신호), LLM 없음
+    "shorts",      # 숏폼 후보: 컷을 대사로 이어 장면으로 묶고 킬·오브젝트가 있는 live 장면을 고름, LLM 없음
     "evaluate",    # 고유명사 오역 판정·조건별 집계 — 예정
 ]
 
@@ -43,6 +44,7 @@ IMPLEMENTED = {
     "asr": "pipeline.audio.asr",
     "timeline": "pipeline.game.timeline",
     "context": "pipeline.game.context",
+    "shorts": "pipeline.shorts.scenes",
 }
 
 

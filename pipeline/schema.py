@@ -239,3 +239,22 @@ class ContextResult(BaseModel):
     events: list[dict] = []     # [{id, t, start_sec, end_sec, game_time, type, team, killer, victims, assists, tags, segment, line_ids, source}]
     signals: dict = {}          # {step_sec, start_sec, loudness, gold_diff, cut_rate, kind}
 
+
+# ---------------------------------------------------------------- shorts (숏폼 후보, pipeline/shorts/scenes.py)
+
+class ShortCandidate(BaseModel):
+    """대사로 이은 컷 묶음(장면) 중 숏폼 후보 하나. 구간은 장면 처음~끝 그대로."""
+
+    id: str                     # c1, c2 … (시간순)
+    cuts: list[str]             # analyzer.json 컷 id
+    kind: str | None = None
+    start_sec: float
+    end_sec: float
+    duration_sec: float
+    events: list[dict] = []     # [{id, t, type, subtype, team, tags}]
+    lines: list[str] = []       # 장면 안 해설 문장 (시간순)
+
+
+class ShortsResult(BaseModel):
+    scenes: int = 0             # 묶은 장면 수 (후보가 아닌 것 포함)
+    candidates: list[ShortCandidate] = []
