@@ -1,6 +1,7 @@
 """LLM 입력: analyzer.json 을 같은 모양(header + segments 트리)으로 두고 숏폼 후보 장면만 남겨 줄인다.
 
-- header: 경기 정보(줄임) · players(슬롯 → "팀 이름 (챔피언)") · segment_types(scene·cut 필드 설명)
+- header: 경기 정보(줄임) · teams("GEN (Gen.G, 젠지)") · winner_side · winner · players(슬롯 → "팀 이름 (챔피언)") ·
+  segment_types(scene·cut 필드 설명)
 - segments: 후보마다 scene 노드 하나 → 그 장면의 cut 들
   - cut: from_sec · to_sec · game_time · events(이름 붙인 것) · lines(문장마다 소리 크기 loud) · state
   - 뺀 것: reference(op.gg 정답지) · 1초 단위 signals 배열 · transition_in · kind(후보는 모두 live) · 대사 raw·fixes
@@ -42,8 +43,9 @@ SEGMENT_TYPES = {
 }
 
 
-def build(data: dict, candidates: list[dict]) -> dict:
-    """analyzer.json(data) 과 후보 목록(scenes.candidates 결과) → LLM 입력."""
+def build(data: dict, candidates: list[dict], team_ko: dict | None = None) -> dict:
+    """analyzer.json(data) 과 후보 목록(scenes.candidates 결과) → LLM 입력.
+    team_ko: {"GEN": "젠지"} (api 팀 이름 사전, 없으면 영어 이름만)."""
     header = data.get("header", {})
     players = header.get("players", {})
     cuts = [c for p in data.get("segments", []) for c in p.get("children", []) if c.get("type") == "cut"]
@@ -75,21 +77,32 @@ def build(data: dict, candidates: list[dict]) -> dict:
             },
             "children": children,
         })
-    return {"header": _header(header), "segments": scenes}
+    return {"header": _header(header, team_ko or {}), "segments": scenes}
 
 
-def _header(h: dict) -> dict:
+def _header(h: dict, team_ko: dict) -> dict:
     ctx = h.get("context") or {}
     m = ctx.get("match") or {}
     teams = ctx.get("teams") or {}
+    winner = (h.get("game") or {}).get("winner")
     return {
         "match": {"name": m.get("name"), "league": m.get("league"), "stage": m.get("stage"), "year": m.get("year"),
                   "format": m.get("format"), "set": m.get("set"),
                   "series_before": (ctx.get("series") or {}).get("score_before")},
-        "teams": {side: f"{t.get('name')} ({t.get('full')})" for side, t in teams.items() if t},
+        "teams": {side: _team(t, team_ko) for side, t in teams.items() if t},
+        "winner_side": winner,
+        "winner": _team(teams.get(winner), team_ko) if winner in teams else None,
         "players": {slot: _who(p) for slot, p in (h.get("players") or {}).items()},
         "segment_types": SEGMENT_TYPES,
     }
+
+
+def _team(t: dict | None, team_ko: dict) -> str | None:
+    """"GEN (Gen.G, 젠지)"."""
+    if not t:
+        return None
+    alias = [x for x in (t.get("full"), team_ko.get(t.get("name"))) if x]
+    return f"{t.get('name')} ({', '.join(alias)})" if alias else t.get("name")
 
 
 def _who(p: dict | None) -> str | None:

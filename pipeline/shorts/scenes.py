@@ -71,7 +71,7 @@ def _with_llm(work_dir: Path, data: dict, cands: list[dict], p: dict) -> list[di
 
     if not cands:
         return cands
-    inp = llm_input.build(data, cands)
+    inp = llm_input.build(data, cands, _team_ko(work_dir))
     work = work_dir / "work"
     (work / "shorts_llm_input.json").write_text(json.dumps(inp, ensure_ascii=False, indent=1), encoding="utf-8")
     prev_path = work / "shorts_llm.json"
@@ -92,6 +92,16 @@ def _with_llm(work_dir: Path, data: dict, cands: list[dict], p: dict) -> list[di
                     "reason": f.get("reason") or "", "clip_start_sec": f.get("start_sec"),
                     "clip_end_sec": f.get("end_sec"), "source": f.get("source"), "warnings": f.get("warnings") or []})
     return sorted(out, key=lambda c: c["rank"] or 999)
+
+
+def _team_ko(work_dir: Path) -> dict:
+    """asr 단계에 넘긴 api 이름 사전(params.terms_extra)의 팀 → {"GEN": "젠지"}. 없으면 {}."""
+    path = work_dir / "work" / "asr.json"
+    try:
+        extra = (json.loads(path.read_text(encoding="utf-8")).get("params") or {}).get("terms_extra") or []
+    except (OSError, ValueError):
+        return {}
+    return {x["name"]: x["text"] for x in extra if x.get("kind") == "team" and x.get("name") and x.get("text")}
 
 
 def group(cuts: list[dict], tol: float = CROSS_TOL) -> list[list[dict]]:

@@ -88,6 +88,46 @@ class RankTest(unittest.TestCase):
         self.assertEqual([c["final"]["rank"] for c in res["candidates"]], [1, 2])
         self.assertEqual(res["candidates"][0]["final"]["source"], "llm+fixed")
 
+    def test_end_extends_through_shouts(self):
+        # 끝 문장 3(116~125) 뒤 4 가 외침, 5 는 정리 → 5 끝(136) + 0.5
+        ans = {"candidates": [{"id": "c1", "rank": 1, "start_line": 2, "end_line": 3, "titles": ["카나비 칼각"], "reason": ""},
+                              {"id": "c2", "rank": 2, "start_line": 6, "end_line": 7, "titles": ["바다 용"], "reason": ""}]}
+        c1 = rank.run(INPUT, client=FakeClient(ans))["candidates"][0]
+        checks = {x["name"]: x for x in c1["checks"]}
+        self.assertEqual(checks["end_extend"]["result"], "fixed")
+        self.assertEqual(c1["final"]["end_sec"], 136.5)
+        self.assertNotIn("end_not_in_fight", checks)
+        self.assertEqual(c1["final"]["source"], "llm+fixed")
+
+    def test_end_extend_stops_after_calm_line(self):
+        lines = [line(1, 0, 4), line(2, 5, 8, 0.95), line(3, 9, 11, 0.4), line(4, 12, 14, 0.95)]
+        self.assertEqual(rank._extend_end(lines, 4.5, 100), (11.5, [2, 3]))
+        self.assertEqual(rank._extend_end(lines, 8.5, 100), (8.5, []))   # 뒤가 조용하면 그대로
+        self.assertEqual(rank._extend_end(lines, 4.5, 9.0), (8.5, [2]))  # 장면 끝 뒤 문장은 더하지 않음
+        self.assertEqual(rank._extend_end(lines, 4.5, 7.0), (8.5, [2]))  # 장면 끝을 걸친 문장은 끝까지
+        self.assertEqual(rank._extend_end(lines, 4.5, 4.5), (4.5, []))   # 장면 끝 뒤에서 시작하는 외침은 안 넣음
+
+    def test_title_result_drops_wrong_winner(self):
+        inp = json.loads(json.dumps(INPUT))
+        inp["header"].update(teams={"blue": "GEN (Gen.G, 젠지)", "red": "HLE (Hanwha Life Esports, 한화생명)"},
+                             winner_side="red")
+        ans = {"candidates": [{"id": "c1", "rank": 1, "start_line": 2, "end_line": 4,
+                               "titles": ["34분 젠지 대승", "카나비 칼각", "한화생명 승리"], "reason": ""},
+                              {"id": "c2", "rank": 2, "start_line": 6, "end_line": 7, "titles": ["한화생명 패배"], "reason": ""}]}
+        c1, c2 = rank.run(inp, client=FakeClient(ans))["candidates"]
+        self.assertEqual(c1["final"]["titles"], ["카나비 칼각", "한화생명 승리"])
+        self.assertEqual({x["name"]: x["result"] for x in c1["checks"]}["title_result"], "fixed")
+        self.assertNotIn("한화생명 패배", c2["final"]["titles"])  # 이긴 팀이 졌다고 함 → 자동 제목
+
+    def test_llm_input_header_has_winner(self):
+        from pipeline.shorts import llm_input
+        data = {"header": {"game": {"winner": "red"}, "context": {"teams": {
+            "blue": {"name": "GEN", "full": "Gen.G"}, "red": {"name": "HLE", "full": "Hanwha Life Esports"}}}},
+            "segments": []}
+        h = llm_input.build(data, [], {"GEN": "젠지", "HLE": "한화생명"})["header"]
+        self.assertEqual(h["teams"]["blue"], "GEN (Gen.G, 젠지)")
+        self.assertEqual((h["winner_side"], h["winner"]), ("red", "HLE (Hanwha Life Esports, 한화생명)"))
+
 
 if __name__ == "__main__":
     unittest.main()

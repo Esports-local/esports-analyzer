@@ -5,8 +5,9 @@
 
 검사 (checks: result = pass · warn · fixed)
 - 고치는 것: lines_in_scene(문장 번호가 그 장면 안, 시작 ≤ 끝 → 아니면 장면 전체) · covers_events(킬·오브젝트가
-  2초 여유와 함께 들어가게 넓힘) · length(8초 미만이면 장면 전체) · title_rules(10자 이내, 이모지·#·"공식" 없음,
-  겹치지 않음 → 걸린 제목은 버리고 다 버려지면 자동 제목)
+  2초 여유와 함께 들어가게 넓힘) · end_extend(바로 뒤 문장이 외침이면 외침이 끝나고 정리 한 문장까지, 최대 15초. 장면 끝을 걸친 문장은 끝까지) ·
+  length(8초 미만이면 장면 전체) · title_rules(10자 이내, 이모지·#·"공식" 없음, 겹치지 않음) ·
+  title_result(진 팀에 이겼다는 말, 이긴 팀에 졌다는 말) → 걸린 제목은 버리고 다 버려지면 자동 제목
 - 표시만: length(180초 넘음, 쇼츠로 못 올림) · start_not_in_fight · end_not_in_fight(바로 앞·뒤 문장이 외침) ·
   title_names(제목의 선수·챔피언이 그 장면 이벤트에 없음) · title_counts(제목의 킬 수가 다름) · rank_vs_rule(LLM 1위가 규칙 점수 하위권)
 LLM 이 없거나 실패하면 규칙 순서 · 장면 전체 · 자동 제목 (final.source = rule).
@@ -22,12 +23,13 @@ from pipeline import llm
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"  # v2: header.winner, 승패 표현 규칙
 TITLE_MAX = 10
 MIN_SEC, SHORTS_MAX_SEC = 8.0, 180.0
 EVENT_LEAD_SEC = 2.0     # 킬·오브젝트 앞에 남길 여유
 LINE_PAD_SEC = 0.5       # 문장 앞뒤로 더 남기는 초
 SHOUT = 0.9              # 이 소리 크기 이상이면 외침 (전투 중)
+EXTEND_MAX_SEC = 15.0    # end_extend 로 넓히는 최대 초
 
 SYSTEM_PROMPT = f"""너는 LoL 중계 숏폼 편집자다. 입력은 한 세트 경기의 숏폼 후보 장면 목록(JSON)이다.
 입력 모양은 header.segment_types 에 설명돼 있다 (scene → cut → events · lines).
@@ -48,6 +50,7 @@ SYSTEM_PROMPT = f"""너는 LoL 중계 숏폼 편집자다. 입력은 한 세트 
 - 한국어, 공백 포함 {TITLE_MAX}자 이내, 3개. 첫 번째가 가장 좋은 것.
 - 선수 이름 또는 챔피언 하나 + 무슨 일이 있었는지 한 마디. 조사는 줄인다. 예: "듀로의 즉시 복수", "15분 바텀 교환", "카나비 칼각"
 - 실제로 일어난 일(events)만 쓴다. 없는 킬·역전·펜타킬을 지어내지 않는다. 팀 이름 "A vs B" 는 넣지 않는다.
+- 이 세트를 이긴 팀은 header.winner 다. 승리·대승·완승 같은 말은 이 팀에만, 패배·완패는 진 팀에만 쓴다.
 - 이모지 · 해시태그 · "공식" 같은 표현은 쓰지 않는다.
 
 [순위]
@@ -110,6 +113,7 @@ def decide(llm_input: dict, answers: list[dict]) -> list[dict]:
     """후보마다 {id, llm, checks, final}. final.rank 는 1부터 겹치지 않게."""
     scenes = llm_input.get("segments") or []
     names = _player_names(llm_input)
+    teams = _team_result(llm_input)
     rule_order = sorted(scenes, key=lambda s: -rule_score(s))
     rule_rank = {s["id"]: i + 1 for i, s in enumerate(rule_order)}
     by_id: dict[str, dict] = {}
@@ -125,7 +129,7 @@ def decide(llm_input: dict, answers: list[dict]) -> list[dict]:
         a = by_id.get(s["id"])
         checks: list[dict] = []
         start, end, line_range, fixed = _span(s, a, checks)
-        titles, title_fixed = _titles(s, a, used_titles, checks)
+        titles, title_fixed = _titles(s, a, used_titles, checks, teams)
         title = titles[0] if titles else auto_title(s, names)
         used_titles.add(title)
         _warns(s, a, start, end, title, names, checks, i if llm_ranks_ok else None, rule_rank[s["id"]], len(scenes))
@@ -190,6 +194,11 @@ def _span(s: dict, a: dict | None, checks: list) -> tuple[float, float, list | N
                        "detail": f"{', '.join(sorted(set(missed)))} 이벤트가 잘려 넓힘"})
     else:
         checks.append({"name": "covers_events", "result": "pass"})
+    end, added = _extend_end(lines, end, b0)
+    if added:
+        fixed = True
+        checks.append({"name": "end_extend", "result": "fixed",
+                       "detail": f"뒤 외침 문장 {', '.join(str(i) for i in added)} 까지 넓힘"})
     if end - start < MIN_SEC:
         checks.append({"name": "length", "result": "fixed", "detail": f"{end - start:.1f}초라 장면 전체로"})
         return a0, b0, None, True
@@ -200,10 +209,10 @@ def _span(s: dict, a: dict | None, checks: list) -> tuple[float, float, list | N
     return start, end, [a["start_line"], a["end_line"]], fixed
 
 
-def _titles(s: dict, a: dict | None, used: set, checks: list) -> tuple[list[str], bool]:
+def _titles(s: dict, a: dict | None, used: set, checks: list, teams: dict | None = None) -> tuple[list[str], bool]:
     if a is None:
         return [], False
-    keep, dropped = [], []
+    keep, dropped, wrong = [], [], []
     for t in a.get("titles") or []:
         t = (t or "").strip()
         why = None
@@ -215,16 +224,24 @@ def _titles(s: dict, a: dict | None, used: set, checks: list) -> tuple[list[str]
             why = "이모지·해시태그·공식 표현"
         elif t in keep or t in used:
             why = "겹침"
+        elif _wrong_result(t, teams):
+            wrong.append(f"'{t}'({_wrong_result(t, teams)})")
+            continue
         if why:
             dropped.append(f"'{t}'({why})")
         else:
             keep.append(t)
+    tail = "" if keep else " → 자동 제목"
     if dropped:
-        checks.append({"name": "title_rules", "result": "fixed",
-                       "detail": "버린 제목: " + ", ".join(dropped) + ("" if keep else " → 자동 제목")})
+        checks.append({"name": "title_rules", "result": "fixed", "detail": "버린 제목: " + ", ".join(dropped) + tail})
     else:
         checks.append({"name": "title_rules", "result": "pass"})
-    return keep, bool(dropped)
+    if wrong:
+        checks.append({"name": "title_result", "result": "fixed",
+                       "detail": "승패가 틀린 제목: " + ", ".join(wrong) + ("" if dropped else tail)})
+    elif teams:
+        checks.append({"name": "title_result", "result": "pass"})
+    return keep, bool(dropped or wrong)
 
 
 def _warns(s, a, start, end, title, names, checks, llm_rank, rule_rank, n):
@@ -289,6 +306,63 @@ def _player_names(llm_input: dict) -> set[str]:
         if m:
             out |= {m.group(1), m.group(2)}
     return out
+
+
+WIN_RE = re.compile("대승|완승|압승|역전승|승리|이겼|이긴|우승")
+LOSE_RE = re.compile("패배|완패|대패|졌다|진 팀|무너")
+
+
+def _team_result(llm_input: dict) -> dict | None:
+    """header.winner_side 와 teams → {"winner": {이름들}, "loser": {이름들}}. 승자를 모르면 None."""
+    h = llm_input.get("header") or {}
+    side = h.get("winner_side")
+    teams = h.get("teams") or {}
+    if side not in ("blue", "red") or len(teams) < 2:
+        return None
+    other = "red" if side == "blue" else "blue"
+    return {"winner": _team_names(teams.get(side)), "loser": _team_names(teams.get(other))}
+
+
+def _team_names(label: str | None) -> set[str]:
+    """"GEN (Gen.G, 젠지)" → {GEN, Gen.G, 젠지}."""
+    m = re.match(r"^(\S+)(?: \((.+)\))?$", label or "")
+    if not m:
+        return set()
+    return {m.group(1)} | {x.strip() for x in (m.group(2) or "").split(",") if x.strip()}
+
+
+def _wrong_result(title: str, teams: dict | None) -> str | None:
+    """진 팀에 이겼다는 말, 이긴 팀에 졌다는 말이면 이유. 팀 이름이 없으면 보지 않는다."""
+    if not teams:
+        return None
+    has = lambda side: any(n and n in title for n in teams[side])
+    if WIN_RE.search(title) and has("loser") and not has("winner"):
+        return "진 팀이 이겼다고 함"
+    if LOSE_RE.search(title) and has("winner") and not has("loser"):
+        return "이긴 팀이 졌다고 함"
+    return None
+
+
+def _extend_end(lines: list[dict], end: float, limit: float) -> tuple[float, list[int]]:
+    """끝 문장 바로 뒤가 외침이면 외침이 이어지는 동안 + 정리 한 문장까지 끝을 넓힌다 (EXTEND_MAX_SEC 안).
+    장면 끝(limit)을 걸친 문장은 끝까지 넣되(말이 중간에 끊기지 않게) 그 뒤로는 더하지 않는다.
+    → (새 끝, 더한 문장 id)."""
+    inside = [l for l in lines if l["to_sec"] <= end + 0.01]
+    if not inside:
+        return end, []
+    last = max(inside, key=lambda l: l["to_sec"])
+    after = [l for l in lines if l["from_sec"] >= last["to_sec"] - 0.01 and l is not last]
+    if not after or (after[0].get("loud") or 0) < SHOUT:
+        return end, []
+    added, new_end = [], end
+    for l in after:
+        if l["from_sec"] >= limit or l["to_sec"] > end + EXTEND_MAX_SEC:
+            break
+        added.append(l["id"])
+        new_end = l["to_sec"] + LINE_PAD_SEC
+        if l["to_sec"] > limit or (l.get("loud") or 0) < SHOUT:  # 장면을 넘는 문장, 외침이 끝난 정리 문장까지
+            break
+    return new_end, added
 
 
 def _line_start_before(lines: list[dict], t: float) -> float:
